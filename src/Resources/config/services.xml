@@ -64,6 +64,12 @@
             <argument id="logger" type="service"/>
         </service>
 
+        <service id="goetas_webservices.xsd2php.writer.sabre" class="GoetasWebservices\Xsd\XsdToPhp\Writer\SabreWriter" public="true">
+            <argument id="goetas_webservices.xsd2php.path_generator.jms" type="service"/>
+            <argument id="goetas_webservices.xsd2php.class_writer.php" type="service"/>
+            <argument id="logger" type="service"/>
+        </service>
+
         <service id="goetas_webservices.xsd2php.writer.validation" class="GoetasWebservices\Xsd\XsdToPhp\Writer\JMSWriter" public="true">
             <argument id="goetas_webservices.xsd2php.path_generator.validation" type="service"/>
             <argument id="logger" type="service"/>

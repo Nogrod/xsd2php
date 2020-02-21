@@ -65,6 +65,11 @@ class Convert extends Command
 
             $writer = $this->container->get('goetas_webservices.xsd2php.writer.' . $type);
             $writer->write($items);
+
+            if ($type === "jms") {
+                $writer = $this->container->get('goetas_webservices.xsd2php.writer.sabre');
+                $writer->write($items);
+            }
         }
         return count($items) ? 0 : 255;
     }

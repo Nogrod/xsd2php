@@ -2,8 +2,10 @@
 namespace GoetasWebservices\Xsd\XsdToPhp\Tests\Converter;
 
 use GoetasWebservices\Xsd\XsdToPhp\Naming\ShortNamingStrategy;
+use PHPUnit\Framework\Assert;
+use PHPUnit\Framework\TestCase;
 
-class AbstractXsdConverterTest extends \PHPUnit_Framework_TestCase
+class AbstractXsdConverterTest extends TestCase
 {
 
     /**
@@ -12,7 +14,7 @@ class AbstractXsdConverterTest extends \PHPUnit_Framework_TestCase
      */
     protected $converter;
 
-    public function setUp()
+    public function setUp(): void
     {
         $this->converter = $this->getMockForAbstractClass('GoetasWebservices\Xsd\XsdToPhp\AbstractConverter', [new ShortNamingStrategy()]);
     }
@@ -23,7 +25,7 @@ class AbstractXsdConverterTest extends \PHPUnit_Framework_TestCase
         };
         $this->converter->addAliasMap('http://www.example.com', "myType", $f);
 
-        $handlers = \PHPUnit_Framework_Assert::readAttribute($this->converter, 'typeAliases');
+        $handlers = Assert::readAttribute($this->converter, 'typeAliases');
 
         $this->assertArrayHasKey('http://www.example.com', $handlers);
         $this->assertArrayHasKey('myType', $exmpleHandlers = $handlers['http://www.example.com']);
@@ -32,7 +34,7 @@ class AbstractXsdConverterTest extends \PHPUnit_Framework_TestCase
 
     public function testDefaultAliases()
     {
-        $handlers = \PHPUnit_Framework_Assert::readAttribute($this->converter, 'typeAliases');
+        $handlers = Assert::readAttribute($this->converter, 'typeAliases');
 
         $this->assertArrayHasKey('http://www.w3.org/2001/XMLSchema', $handlers);
         $defaultHandlers = $handlers['http://www.w3.org/2001/XMLSchema'];
@@ -46,7 +48,7 @@ class AbstractXsdConverterTest extends \PHPUnit_Framework_TestCase
     {
         $this->converter->addNamespace('http://www.example.com', 'some\php\ns');
 
-        $namespaces = \PHPUnit_Framework_Assert::readAttribute($this->converter, 'namespaces');
+        $namespaces = Assert::readAttribute($this->converter, 'namespaces');
 
         $this->assertArrayHasKey('http://www.example.com', $namespaces);
         $this->assertEquals('some\php\ns', $namespaces['http://www.example.com']);

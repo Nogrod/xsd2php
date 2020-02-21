@@ -7,8 +7,8 @@ use GoetasWebservices\Xsd\XsdToPhp\Php\Structure\PHPClassOf;
 use GoetasWebservices\Xsd\XsdToPhp\Php\Structure\PHPProperty;
 use Laminas\Code\Generator;
 use Laminas\Code\Generator\DocBlock\Tag\ParamTag;
-use Laminas\Code\Generator\DocBlock\Tag\VarTag;
 use Laminas\Code\Generator\DocBlock\Tag\ReturnTag;
+use Laminas\Code\Generator\DocBlock\Tag\VarTag;
 use Laminas\Code\Generator\DocBlockGenerator;
 use Laminas\Code\Generator\MethodGenerator;
 use Laminas\Code\Generator\ParameterGenerator;
@@ -19,6 +19,19 @@ class ClassGenerator
 
     private function handleBody(Generator\ClassGenerator $class, PHPClass $type)
     {
+        $constants = array();
+        foreach ($type->getChecks('__value') as $checkType => $checkValues) {
+            if ($checkType == "enumeration") {
+                foreach ($checkValues as $enumeration) {
+                    $constants[] = $this->handleConstantValues($class, $type, $enumeration);
+                }
+            }
+        }
+        if ($constants) {
+            // $this->handleStaticCheckProperty($class, $constants);
+            return true;
+        }
+
         foreach ($type->getProperties() as $prop) {
             if ($prop->getName() !== '__value') {
                 $this->handleProperty($class, $prop);
@@ -310,6 +323,27 @@ class ClassGenerator
         $this->handleSetter($generator, $prop, $class);
     }
 
+    private function handleConstantValues(Generator\ClassGenerator $generator, PHPClass $type, array $enumeration)
+    {
+        if (preg_match("/[\r\n\t]/", $enumeration['value'])) {
+            return;
+        }
+        $docblock = new DocBlockGenerator("Constant for " . var_export($enumeration['value'], true) . " value.");
+        if (trim($enumeration['doc'])) {
+            $docblock->setLongDescription(trim($enumeration['doc']));
+        }
+        $constantNameFixer = function($s){
+            $s = preg_replace('/([[:upper:]]+[[:lower:]]*)|([[:lower:]]+)|(\d+)/', '$1$2$3_', $s);
+            $s = preg_replace('/[^\p{L}\p{N}_]/u', '_', $s);
+
+            return mb_strtoupper(trim($s, '_'));
+        };
+        $prop = new PropertyGenerator("VAL_" . $constantNameFixer($enumeration['value']), $enumeration['value'], PropertyGenerator::FLAG_CONSTANT);
+        $prop->setDocBlock($docblock);
+        $generator->addPropertyFromGenerator($prop);
+        return $prop->getDefaultValue()->getValue();
+    }
+
     private function handleProperty(Generator\ClassGenerator $class, PHPProperty $prop)
     {
         $generatedProp = new PropertyGenerator($prop->getName());
@@ -386,7 +420,199 @@ class ClassGenerator
         }
 
         if ($this->handleBody($class, $type)) {
+            $this->addSerialization($class, $type);
+            $this->addDeserialization($class, $type);
             return $class;
+        }
+    }
+
+    private function addSerialization(Generator\ClassGenerator $class, PHPClass $type)
+    {
+        if ($type->getMeta() === null) return;
+        $isBase = $class->getExtendedClass() === null;
+        //$class->addUse('\Sabre\Xml\Writer');
+        $method = new MethodGenerator('xmlSerialize');
+        $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
+        $param = new ParameterGenerator('writer');
+        $param->setType('\Sabre\Xml\Writer');
+        $method->setParameter($param);
+        $meta = $type->getMeta();
+        $className = array_key_first($meta);
+        $methodLines = [];
+        if (!$isBase) {
+            $methodLines[] = 'parent::xmlSerialize($writer);';
+        } elseif (isset($meta[$className]['virtual_properties'])) {
+            foreach ($meta[$className]['virtual_properties'] as $property) {
+                if (isset($property['xml_attribute']) && $property['xml_attribute']) {
+                    $methodLines[] = '$writer->writeAttribute("'.$property['serialized_name'].'", '.$property['exp'].');';
+                }
+            }
+        }
+        if (isset($meta[$className]['properties'])) {
+            foreach ($meta[$className]['properties'] as $property) {
+                $isBool = $property['type'] === 'bool';
+                $methodLines[] = '$value = $this->'.$property['accessor']['getter'].'();';
+                if ($isBool) $methodLines[] = '$value = null !== $value ? ($value ? \'true\' : \'false\') : null;';
+                if (isset($property['xml_value']) && $property['xml_value']) {
+                    $methodLines[] = '$writer->write($value);';
+                    continue;
+                }
+                if (isset($property['xml_attribute']) && $property['xml_attribute']) {
+                    $methodLines[] = 'if (null !== $value)';
+                    $methodLines[] = '$writer->writeAttribute("'.$property['serialized_name'].'", $value);';
+                    continue;
+                }
+                $ns = '{'.$property['xml_element']['namespace'].'}';
+                if (isset($property['xml_list']) && ($property['xml_list']['inline'] || $property['xml_list']['skip_when_empty'])) {
+                    $methodLines[] = 'if (null !== $value && !empty($this->'.$property['accessor']['getter'] . '()))';
+                    $arrayMap = 'array_map(function($v){return ["'.$property['xml_list']['entry_name'].'" => $v];}, $value)';
+                    if ($property['xml_list']['inline'])
+                        $methodLines[] = '$writer->write('.$arrayMap.');';
+                    else
+                        $methodLines[] = '$writer->writeElement("'.$ns.$property['serialized_name'].'", '.$arrayMap.');';
+                } else {
+                    $methodLines[] = 'if (null !== $value)';
+                    $methodLines[] = '$writer->writeElement("'.$ns.$property['serialized_name'].'", $value);';
+                }
+            }
+        }
+        $method->setBody(implode(PHP_EOL, $methodLines));
+        $class->addMethodFromGenerator($method);
+        if ($isBase) {
+            $ifaces = $class->getImplementedInterfaces();
+            $ifaces[] = '\Sabre\Xml\XmlSerializable';
+            $class->setImplementedInterfaces($ifaces);
+        }
+    }
+
+    private function addDeserialization(Generator\ClassGenerator $class, PHPClass $type)
+    {
+        if ($type->getMeta() === null) return;
+        $isBase = $class->getExtendedClass() === null;
+        $meta = $type->getMeta();
+        $className = array_key_first($meta);
+        $valueType = isset($meta[$className]['properties']) && isset($meta[$className]['properties']['__value']);
+
+        //$class->addUse('\Sabre\Xml\Reader');
+        $method = new MethodGenerator('xmlDeserialize');
+        $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
+        $method->setStatic(true);
+        $param = new ParameterGenerator('reader');
+        $param->setType('\Sabre\Xml\Reader');
+        $method->setParameter($param);
+        $methodLines = [];
+        $methodLines[] = 'return self::fromKeyValue($reader->parseInnerTree([]));';
+        $method->setBody(implode(PHP_EOL, $methodLines));
+        $class->addMethodFromGenerator($method);
+
+        $method = new MethodGenerator('fromKeyValue');
+        $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
+        $method->setStatic(true);
+        $param = new ParameterGenerator('keyValue');
+        //$param->setType('array');
+        //$param->setPassedByReference(true);
+        $method->setParameter($param);
+        $methodLines = [];
+        $methodLines[] = '$self = new self('.($valueType ? '$keyValue' : '').');';
+        $methodLines[] = '$self->setKeyValue($keyValue);';
+        $methodLines[] = 'return $self;';
+        $method->setBody(implode(PHP_EOL, $methodLines));
+        $class->addMethodFromGenerator($method);
+
+        $method = new MethodGenerator('setKeyValue');
+        $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
+        $param = new ParameterGenerator('keyValue');
+        //$param->setType('array');
+        //$param->setPassedByReference(true);
+        $method->setParameter($param);
+        $methodLines = [];
+        if (!$isBase) {
+            $methodLines[] = 'parent::setKeyValue($keyValue);';
+        }
+        if (isset($meta[$className]['properties'])) {
+            foreach ($meta[$className]['properties'] as $property) {
+                if (isset($property['xml_value']) && $property['xml_value']) {
+                    //TODO
+                    continue;
+                }
+                if (isset($property['xml_attribute']) && $property['xml_attribute']) {
+                    //TODO
+                    continue;
+                }
+                $ns = '{'.$property['xml_element']['namespace'].'}';
+                $entry = $ns.$property['serialized_name'];
+                $type = $property['type'];
+                $isArray = false;
+                preg_match('/array<(?P<type>.+)>/', $type, $hits);
+                if (isset($hits['type'])) {
+                    $type = $hits['type'];
+                    $isArray = true;
+                }
+                if ($isArray) {
+                    $methodLines[] = '$value = self::mapArray($keyValue, \''.$entry.'\', true);';
+                    $methodLines[] = 'if (null !== $value && !empty($value))';
+                } else {
+                    $methodLines[] = '$value = self::mapArray($keyValue, \''.$entry.'\');';
+                    $methodLines[] = 'if (null !== $value)';
+                }
+                switch ($type) {
+                    case 'string':
+                    case 'float':
+                    case 'int':
+                    case 'bool':
+                    case 'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\Time':
+                        $methodLines[] = '$this->'.$property['accessor']['setter'].'($value);';
+                        break;
+                    case 'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\DateTime':
+                    case 'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\Date':
+                        $methodLines[] = '$this->'.$property['accessor']['setter'].'(new \DateTime($value));';
+                        break;
+                    case 'DateInterval':
+                        $methodLines[] = '$this->'.$property['accessor']['setter'].'(new \DateInterval($value));';
+                        break;
+                    default:
+                        if ($isArray)
+                            $value = 'array_map(function($v){return \\'.$type.'::fromKeyValue($v);}, $value)';
+                        else
+                            $value = '\\'.$type.'::fromKeyValue($value)';
+                        $methodLines[] = '$this->'.$property['accessor']['setter'].'('.$value.');';
+                        break;
+                }
+            }
+        }
+        $method->setBody(implode(PHP_EOL, $methodLines));
+        $class->addMethodFromGenerator($method);
+
+        $method = new MethodGenerator('mapArray');
+        $method->setStatic(true);
+        $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
+        $params = [];
+        $param = new ParameterGenerator('array');
+        $param->setType('array');
+        $params[] = $param;
+        $param = new ParameterGenerator('name');
+        $param->setType('string');
+        $params[] = $param;
+        $param = new ParameterGenerator('isArray');
+        $param->setType('bool');
+        $param->setDefaultValue(false);
+        $params[] = $param;
+        $method->setParameters($params);
+        $methodLines = [];
+        $methodLines[] = '$result = [];';
+        $methodLines[] = 'foreach ($array as $item) {';
+        $methodLines[] = 'if ($item[\'name\'] !== $name) continue;';
+        $methodLines[] = 'if ($isArray) $result[] = $item[\'value\'];';
+        $methodLines[] = 'else return $item[\'value\'];';
+        $methodLines[] = '}';
+        $methodLines[] = 'return $isArray ? $result : null;';
+        $method->setBody(implode(PHP_EOL, $methodLines));
+        $class->addMethodFromGenerator($method);
+
+        if ($isBase) {
+            $ifaces = $class->getImplementedInterfaces();
+            $ifaces[] = '\Sabre\Xml\XmlDeserializable';
+            $class->setImplementedInterfaces($ifaces);
         }
     }
 }

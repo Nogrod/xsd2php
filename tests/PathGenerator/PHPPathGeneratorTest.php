@@ -3,13 +3,14 @@ namespace GoetasWebservices\Xsd\XsdToPhp\Tests\Php\PathGenerator;
 
 use GoetasWebservices\Xsd\XsdToPhp\Php\PathGenerator\Psr4PathGenerator;
 use GoetasWebservices\Xsd\XsdToPhp\Php\Structure\PHPClass;
+use PHPUnit\Framework\TestCase;
 use Laminas\Code\Generator\ClassGenerator;
 
-class PHPPathGeneratorTest extends \PHPUnit_Framework_TestCase
+class PHPPathGeneratorTest extends TestCase
 {
     protected $tmpdir;
 
-    public function setUp()
+    public function setUp(): void
     {
         $tmp = sys_get_temp_dir();
 

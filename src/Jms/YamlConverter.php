@@ -223,6 +223,14 @@ class YamlConverter extends AbstractConverter
 
             $this->classes[spl_object_hash($type)]["class"] = &$class;
 
+            $data['virtual_properties'] = [
+                'ns_prop' => [
+                    'exp' => '"'.$type->getSchema()->getTargetNamespace().'"',
+                    'serialized_name' => 'xmlns',
+                    'xml_attribute' => true
+                ]
+            ];
+
             $this->visitTypeBase($class, $data, $type, $type->getName());
 
             if ($type instanceof SimpleType || $this->isArrayType($type)) {
@@ -231,7 +239,8 @@ class YamlConverter extends AbstractConverter
             }
 
             if (!$force && ($this->isArrayType($type) || $this->isArrayNestedElement($type))) {
-                $this->classes[spl_object_hash($type)]["skip"] = true;
+                //don't skip
+                //$this->classes[spl_object_hash($type)]["skip"] = true;
                 return $class;
             }
         } elseif ($force) {

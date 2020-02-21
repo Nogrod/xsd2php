@@ -27,10 +27,13 @@ class PHPWriter extends Writer implements LoggerAwareInterface
      */
     public function write(array $items)
     {
+        $classes = [];
         while($item = array_pop($items)) {
+            $this->logger->debug(sprintf("Generate PHP class %s", $item->getName()));
             if($generator = $this->generator->generate($item)) {
-                $this->classWriter->write([$generator]);
+                $classes[] = $generator;
             }
         }
+        $this->classWriter->write($classes);
     }
 }

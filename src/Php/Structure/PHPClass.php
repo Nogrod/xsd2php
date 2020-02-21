@@ -10,6 +10,8 @@ class PHPClass
 
     protected $doc;
 
+    protected $meta;
+
     public static function createFromFQCN($className)
     {
         if (($pos = strrpos($className, '\\')) !== false) {
@@ -65,10 +67,11 @@ class PHPClass
     }
 
 
-    public function __construct($name = null, $namespace = null)
+    public function __construct($name = null, $namespace = null, $meta = null)
     {
         $this->name = $name;
         $this->namespace = $namespace;
+        $this->meta = $meta;
     }
 
     public function getName()
@@ -101,6 +104,17 @@ class PHPClass
     public function setDoc($doc)
     {
         $this->doc = $doc;
+        return $this;
+    }
+
+    public function getMeta()
+    {
+        return $this->meta;
+    }
+
+    public function setMeta($meta)
+    {
+        $this->meta = $meta;
         return $this;
     }
 

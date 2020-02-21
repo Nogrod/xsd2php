@@ -54,6 +54,7 @@ class PhpConverter extends AbstractConverter
         $visited = array();
         $this->classes = array();
         foreach ($schemas as $schema) {
+            $this->logger->debug(sprintf("Convert Schema %s", $schema->getTargetNameSpace()));
             $this->navigate($schema, $visited);
         }
         return $this->getTypes();
@@ -228,6 +229,7 @@ class PhpConverter extends AbstractConverter
      */
     public function visitType(Type $type, $force = false, $skip = false)
     {
+        $this->logger->debug(sprintf("Visit Type %s (%s)", $type->getName(), get_class($type)));
         if (!isset($this->classes[spl_object_hash($type)])) {
 
             $skip = $skip || in_array($type->getSchema()->getTargetNamespace(), $this->baseSchemas, true);
@@ -238,6 +240,7 @@ class PhpConverter extends AbstractConverter
                 $class->setName($alias);
                 $this->classes[spl_object_hash($type)]["skip"] = true;
                 $this->skipByType[spl_object_hash($class)] = true;
+                $this->logger->debug(sprintf("Add Alias %s Type %s", $alias, $type->getName()));
                 return $class;
             }
 
@@ -249,14 +252,18 @@ class PhpConverter extends AbstractConverter
 
             $this->visitTypeBase($class, $type);
 
-            if ($type instanceof SimpleType) {
+            $hasEnum = $class->getChecks('__value');
+            if (!$force && !isset($hasEnum['enumeration']) && $class->hasPropertyInHierarchy('__value') && $type instanceof SimpleType) {
                 $this->classes[spl_object_hash($type)]["skip"] = true;
                 $this->skipByType[spl_object_hash($class)] = true;
+                $this->logger->debug(sprintf("Ignore SimpleType __value %s", $type->getName()));
                 return $class;
             }
             if (($this->isArrayType($type) || $this->isArrayNestedElement($type)) && !$force) {
-                $this->classes[spl_object_hash($type)]["skip"] = true;
-                $this->skipByType[spl_object_hash($class)] = true;
+                //don't skip
+                //$this->classes[spl_object_hash($type)]["skip"] = true;
+                //$this->skipByType[spl_object_hash($class)] = true;
+                //$this->logger->debug(sprintf("Ignore ArrayType %s", $type->getName()));
                 return $class;
             }
 
@@ -303,6 +310,7 @@ class PhpConverter extends AbstractConverter
             } else {
                 $property = $this->visitElement($class, $schema, $element);
                 $class->addProperty($property);
+                $this->logger->debug(sprintf("Type %s add property %s", $type->getName(), $property->getName()));
             }
         }
     }
@@ -369,6 +377,7 @@ class PhpConverter extends AbstractConverter
             } else {
                 $property = $this->visitAttribute($class, $schema, $attr);
                 $class->addProperty($property);
+                $this->logger->debug(sprintf("Type %s add property %s", $type->getName(), $property->getName()));
             }
         }
     }
