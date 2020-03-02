@@ -586,33 +586,6 @@ class ClassGenerator
         $class->addMethodFromGenerator($method);
 
         if ($isBase) {
-            //TODO move to Util class
-            /*$method = new MethodGenerator('mapArray');
-            $method->setStatic(true);
-            $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
-            $params = [];
-            $param = new ParameterGenerator('array');
-            $param->setType('array');
-            $params[] = $param;
-            $param = new ParameterGenerator('name');
-            $param->setType('string');
-            $params[] = $param;
-            $param = new ParameterGenerator('isArray');
-            $param->setType('bool');
-            $param->setDefaultValue(false);
-            $params[] = $param;
-            $method->setParameters($params);
-            $methodLines = [];
-            $methodLines[] = '$result = [];';
-            $methodLines[] = 'foreach ($array as $item) {';
-            $methodLines[] = 'if ($item[\'name\'] !== $name) continue;';
-            $methodLines[] = 'if ($isArray) $result[] = $item[\'value\'];';
-            $methodLines[] = 'else return $item[\'value\'];';
-            $methodLines[] = '}';
-            $methodLines[] = 'return $isArray ? $result : null;';
-            $method->setBody(implode(PHP_EOL, $methodLines));
-            $class->addMethodFromGenerator($method);*/
-
             $ifaces = $class->getImplementedInterfaces();
             $ifaces[] = '\Sabre\Xml\XmlDeserializable';
             $class->setImplementedInterfaces($ifaces);
