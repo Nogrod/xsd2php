@@ -13,6 +13,7 @@ use Laminas\Code\Generator\DocBlockGenerator;
 use Laminas\Code\Generator\MethodGenerator;
 use Laminas\Code\Generator\ParameterGenerator;
 use Laminas\Code\Generator\PropertyGenerator;
+use Nogrod\XMLClientRuntime\Func;
 
 class ClassGenerator
 {
@@ -539,6 +540,7 @@ class ClassGenerator
                     //TODO
                     continue;
                 }
+                $class->addUse(Func::class);
                 $ns = '{'.$property['xml_element']['namespace'].'}';
                 $entry = $ns.$property['serialized_name'];
                 $type = $property['type'];
@@ -549,10 +551,10 @@ class ClassGenerator
                     $isArray = true;
                 }
                 if ($isArray) {
-                    $methodLines[] = '$value = self::mapArray($keyValue, \''.$entry.'\', true);';
+                    $methodLines[] = '$value = Func::mapArray($keyValue, \''.$entry.'\', true);';
                     $methodLines[] = 'if (null !== $value && !empty($value))';
                 } else {
-                    $methodLines[] = '$value = self::mapArray($keyValue, \''.$entry.'\');';
+                    $methodLines[] = '$value = Func::mapArray($keyValue, \''.$entry.'\');';
                     $methodLines[] = 'if (null !== $value)';
                 }
                 switch ($type) {
@@ -583,33 +585,34 @@ class ClassGenerator
         $method->setBody(implode(PHP_EOL, $methodLines));
         $class->addMethodFromGenerator($method);
 
-        $method = new MethodGenerator('mapArray');
-        $method->setStatic(true);
-        $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
-        $params = [];
-        $param = new ParameterGenerator('array');
-        $param->setType('array');
-        $params[] = $param;
-        $param = new ParameterGenerator('name');
-        $param->setType('string');
-        $params[] = $param;
-        $param = new ParameterGenerator('isArray');
-        $param->setType('bool');
-        $param->setDefaultValue(false);
-        $params[] = $param;
-        $method->setParameters($params);
-        $methodLines = [];
-        $methodLines[] = '$result = [];';
-        $methodLines[] = 'foreach ($array as $item) {';
-        $methodLines[] = 'if ($item[\'name\'] !== $name) continue;';
-        $methodLines[] = 'if ($isArray) $result[] = $item[\'value\'];';
-        $methodLines[] = 'else return $item[\'value\'];';
-        $methodLines[] = '}';
-        $methodLines[] = 'return $isArray ? $result : null;';
-        $method->setBody(implode(PHP_EOL, $methodLines));
-        $class->addMethodFromGenerator($method);
-
         if ($isBase) {
+            //TODO move to Util class
+            /*$method = new MethodGenerator('mapArray');
+            $method->setStatic(true);
+            $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
+            $params = [];
+            $param = new ParameterGenerator('array');
+            $param->setType('array');
+            $params[] = $param;
+            $param = new ParameterGenerator('name');
+            $param->setType('string');
+            $params[] = $param;
+            $param = new ParameterGenerator('isArray');
+            $param->setType('bool');
+            $param->setDefaultValue(false);
+            $params[] = $param;
+            $method->setParameters($params);
+            $methodLines = [];
+            $methodLines[] = '$result = [];';
+            $methodLines[] = 'foreach ($array as $item) {';
+            $methodLines[] = 'if ($item[\'name\'] !== $name) continue;';
+            $methodLines[] = 'if ($isArray) $result[] = $item[\'value\'];';
+            $methodLines[] = 'else return $item[\'value\'];';
+            $methodLines[] = '}';
+            $methodLines[] = 'return $isArray ? $result : null;';
+            $method->setBody(implode(PHP_EOL, $methodLines));
+            $class->addMethodFromGenerator($method);*/
+
             $ifaces = $class->getImplementedInterfaces();
             $ifaces[] = '\Sabre\Xml\XmlDeserializable';
             $class->setImplementedInterfaces($ifaces);
