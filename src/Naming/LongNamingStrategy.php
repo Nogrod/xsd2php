@@ -1,7 +1,7 @@
 <?php
 namespace GoetasWebservices\Xsd\XsdToPhp\Naming;
 
-use Doctrine\Common\Inflector\Inflector;
+use Doctrine\Inflector\InflectorFactory;
 use GoetasWebservices\XML\XSDReader\Schema\Item;
 use GoetasWebservices\XML\XSDReader\Schema\Type\Type;
 
@@ -85,6 +85,11 @@ class LongNamingStrategy implements NamingStrategy
         'while',
         'xor',
     ];
+	
+	public function __construct()
+    {
+		$this->inflector = InflectorFactory::create()->build();
+    }
 
     public function getTypeName(Type $type)
     {
@@ -107,11 +112,11 @@ class LongNamingStrategy implements NamingStrategy
 
     public function getPropertyName($item)
     {
-        return Inflector::camelize(str_replace(".", " ", $item->getName()));
+        return $this->inflector->camelize(str_replace(".", " ", $item->getName()));
     }
 
     private function classify($name)
     {
-        return Inflector::classify(str_replace(".", " ", $name));
+        return $this->inflector->classify(str_replace(".", " ", $name));
     }
 }

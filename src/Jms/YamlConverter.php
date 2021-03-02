@@ -1,7 +1,7 @@
 <?php
 namespace GoetasWebservices\Xsd\XsdToPhp\Jms;
 
-use Doctrine\Common\Inflector\Inflector;
+use Doctrine\Inflector\InflectorFactory;
 use Exception;
 use GoetasWebservices\XML\XSDReader\Schema\Attribute\AttributeContainer;
 use GoetasWebservices\XML\XSDReader\Schema\Attribute\AttributeItem;
@@ -25,6 +25,8 @@ class YamlConverter extends AbstractConverter
 {
 
     protected $useCdata = true;
+	
+	private $inflector;
 
     public function __construct(NamingStrategy $namingStrategy)
     {
@@ -40,6 +42,8 @@ class YamlConverter extends AbstractConverter
         $this->addAliasMap("http://www.w3.org/2001/XMLSchema", "date", function (Type $type) {
             return "GoetasWebservices\Xsd\XsdToPhp\XMLSchema\Date";
         });
+		
+		$this->inflector = InflectorFactory::create()->build();
     }
 
     public function setUseCdata($value)
@@ -381,8 +385,8 @@ class YamlConverter extends AbstractConverter
         $property["access_type"] = "public_method";
         $property["serialized_name"] = $attribute->getName();
 
-        $property["accessor"]["getter"] = "get" . Inflector::classify($this->getNamingStrategy()->getPropertyName($attribute));
-        $property["accessor"]["setter"] = "set" . Inflector::classify($this->getNamingStrategy()->getPropertyName($attribute));
+        $property["accessor"]["getter"] = "get" . $this->inflector->classify($this->getNamingStrategy()->getPropertyName($attribute));
+        $property["accessor"]["setter"] = "set" . $this->inflector->classify($this->getNamingStrategy()->getPropertyName($attribute));
 
         $property["xml_attribute"] = true;
 
@@ -459,8 +463,8 @@ class YamlConverter extends AbstractConverter
             $property["xml_element"]["namespace"] = $element->getSchema()->getTargetNamespace();
         }
 
-        $property["accessor"]["getter"] = "get" . Inflector::classify($this->getNamingStrategy()->getPropertyName($element));
-        $property["accessor"]["setter"] = "set" . Inflector::classify($this->getNamingStrategy()->getPropertyName($element));
+        $property["accessor"]["getter"] = "get" . $this->inflector->classify($this->getNamingStrategy()->getPropertyName($element));
+        $property["accessor"]["setter"] = "set" . $this->inflector->classify($this->getNamingStrategy()->getPropertyName($element));
         $t = $element->getType();
 
         if ($arrayize) {
