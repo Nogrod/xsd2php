@@ -86,6 +86,8 @@ class LongNamingStrategy implements NamingStrategy
         'xor',
     ];
 	
+	private $inflector;
+
 	public function __construct()
     {
 		$this->inflector = InflectorFactory::create()->build();

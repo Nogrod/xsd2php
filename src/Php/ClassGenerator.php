@@ -17,6 +17,8 @@ use Nogrod\XMLClientRuntime\Func;
 
 class ClassGenerator
 {
+	private $inflector;
+
 	public function __construct()
     {
 		$this->inflector = InflectorFactory::create()->build();
