@@ -22,7 +22,7 @@ class JMSWriter extends Writer implements LoggerAwareInterface
         $this->logger = $logger ?: new NullLogger();
     }
 
-    public function write(array $items)
+    public function write(array $items, bool $noSabre = false)
     {
         $dumper = new Dumper();
         foreach ($items as $item) {

@@ -4,7 +4,6 @@ namespace GoetasWebservices\Xsd\XsdToPhp\Writer;
 use GoetasWebservices\Xsd\XsdToPhp\Jms\PathGenerator\PathGenerator;
 use Laminas\Code\Generator\ClassGenerator;
 use Laminas\Code\Generator\MethodGenerator;
-use Laminas\Code\Generator\ParameterGenerator;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use Psr\Log\LoggerInterface;
@@ -26,7 +25,7 @@ class SabreWriter extends Writer implements LoggerAwareInterface
         $this->logger = $logger ?: new NullLogger();
     }
 
-    public function write(array $items)
+    public function write(array $items, bool $noSabre = false)
     {
         $destinations_php = $this->config['destinations_php'];
         $jmsPaths = $this->config['destinations_jms'];

@@ -395,9 +395,9 @@ class ClassGenerator
         $docBlock->setTag($tag);
     }
 
-    public function generate(PHPClass $type)
+    public function generate(PHPClass $type, bool $noSabre = false)
     {
-        $class = new \Laminas\Code\Generator\ClassGenerator();
+        $class = new Generator\ClassGenerator();
         $docblock = new DocBlockGenerator("Class representing " . $type->getName());
         $docblock->setWordWrap(false);
         if ($type->getDoc()) {
@@ -426,7 +426,7 @@ class ClassGenerator
             }
         }
 
-        if ($this->handleBody($class, $type)) {
+        if ($this->handleBody($class, $type) && !$noSabre) {
             $this->addSerialization($class, $type);
             $this->addDeserialization($class, $type);
             return $class;
