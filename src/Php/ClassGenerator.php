@@ -426,9 +426,11 @@ class ClassGenerator
             }
         }
 
-        if ($this->handleBody($class, $type) && !$noSabre) {
-            $this->addSerialization($class, $type);
-            $this->addDeserialization($class, $type);
+        if ($this->handleBody($class, $type)) {
+            if (!$noSabre) {
+                $this->addSerialization($class, $type);
+                $this->addDeserialization($class, $type);
+            }
             return $class;
         }
     }
