@@ -30,7 +30,7 @@ class PHPWriter extends Writer implements LoggerAwareInterface
         $classes = [];
         while($item = array_pop($items)) {
             $this->logger->debug(sprintf("Generate PHP class %s", $item->getName()));
-            if($generator = $this->generator->generate($item)) {
+            if($generator = $this->generator->generate($item, $noSabre)) {
                 $classes[] = $generator;
             }
         }
