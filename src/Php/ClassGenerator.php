@@ -445,6 +445,7 @@ class ClassGenerator
         $param = new ParameterGenerator('writer');
         $param->setType('\Sabre\Xml\Writer');
         $method->setParameter($param);
+        $method->setReturnType('void');
         $meta = $type->getMeta();
         $className = array_key_first($meta);
         $methodLines = [];
