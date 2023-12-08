@@ -27,7 +27,7 @@ class Convert extends Command
 
     /**
      *
-     * @see Console\Command\Command
+     * @see Command
      */
     protected function configure()
     {
