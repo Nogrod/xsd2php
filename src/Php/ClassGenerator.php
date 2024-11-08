@@ -588,7 +588,7 @@ class ClassGenerator
                             if ($isInline) {
                                 $value = 'array_map(function($v){return \\'.$type.'::fromKeyValue($v);}, $value)';
                             } else {
-                                $value = 'array_map(function($v){return \\'.$type.'::fromKeyValue(Func::mapArray($v, '.$ns.$property['xml_list']['entry_name'].', true);}, $value)';
+                                $value = 'array_map(function($v){return \\'.$type.'::fromKeyValue(Func::mapArray($v, \''.$ns.$property['xml_list']['entry_name'].'\', true));}, $value)';
                             }
                         } else
                             $value = '\\'.$type.'::fromKeyValue($value)';
