@@ -554,10 +554,12 @@ class ClassGenerator
                 $entry = $ns.$property['serialized_name'];
                 $type = $property['type'];
                 $isArray = false;
+                $isInline = false;
                 preg_match('/array<(?P<type>.+)>/', $type, $hits);
                 if (isset($hits['type'])) {
                     $type = $hits['type'];
                     $isArray = true;
+                    $isInline = isset($property['xml_list']) && $property['xml_list']['inline'];
                 }
                 if ($isArray) {
                     $methodLines[] = '$value = Func::mapArray($keyValue, \''.$entry.'\', true);';
@@ -582,9 +584,13 @@ class ClassGenerator
                         $methodLines[] = '$this->'.$property['accessor']['setter'].'(new \DateInterval($value));';
                         break;
                     default:
-                        if ($isArray)
-                            $value = 'array_map(function($v){return \\'.$type.'::fromKeyValue($v);}, $value)';
-                        else
+                        if ($isArray) {
+                            if ($isInline) {
+                                $value = 'array_map(function($v){return \\'.$type.'::fromKeyValue($v);}, $value)';
+                            } else {
+                                $value = 'array_map(function($v){return \\'.$type.'::fromKeyValue(Func::mapArray($v, '.$ns.$property['xml_list']['entry_name'].', true);}, $value)';
+                            }
+                        } else
                             $value = '\\'.$type.'::fromKeyValue($value)';
                         $methodLines[] = '$this->'.$property['accessor']['setter'].'('.$value.');';
                         break;
