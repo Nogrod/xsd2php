@@ -17,11 +17,11 @@ use Nogrod\XMLClientRuntime\Func;
 
 class ClassGenerator
 {
-	private $inflector;
+    private $inflector;
 
-	public function __construct()
+    public function __construct()
     {
-		$this->inflector = InflectorFactory::create()->build();
+        $this->inflector = InflectorFactory::create()->build();
     }
 
     private function handleBody(Generator\ClassGenerator $class, PHPClass $type)
@@ -151,7 +151,7 @@ class ClassGenerator
 
         if ($type && $type instanceof PHPClassOf) {
             $patramTag->setTypes($type->getArg()
-                    ->getType()->getPhpType() . "[]");
+                                     ->getType()->getPhpType() . "[]");
             $parameter->setType("array");
 
             if ($p = $type->getArg()->getType()->isSimpleType()
@@ -541,17 +541,11 @@ class ClassGenerator
         }
         if (isset($meta[$className]['properties'])) {
             foreach ($meta[$className]['properties'] as $property) {
-                if (isset($property['xml_value']) && $property['xml_value']) {
-                    //TODO
-                    continue;
-                }
-                if (isset($property['xml_attribute']) && $property['xml_attribute']) {
-                    //TODO
-                    continue;
-                }
                 $class->addUse(Func::class);
-                $ns = '{'.$property['xml_element']['namespace'].'}';
-                $entry = $ns.$property['serialized_name'];
+                $isAttribute = isset($property['xml_attribute']) && $property['xml_attribute'];
+                $isValue = isset($property['xml_value']) && $property['xml_value'];
+                $ns = $isAttribute ? '' : '{'.$property['xml_element']['namespace'].'}';
+                $entry = $isValue ? 'value' : $ns.$property['serialized_name'];
                 $type = $property['type'];
                 $isArray = false;
                 $isInline = false;
@@ -561,13 +555,26 @@ class ClassGenerator
                     $isArray = true;
                     $isInline = isset($property['xml_list']) && $property['xml_list']['inline'];
                 }
-                if ($isArray) {
-                    $methodLines[] = '$value = Func::mapArray($keyValue, \''.$entry.'\', true);';
-                    $methodLines[] = 'if (null !== $value && !empty($value))';
-                } else {
-                    $methodLines[] = '$value = Func::mapArray($keyValue, \''.$entry.'\');';
-                    $methodLines[] = 'if (null !== $value)';
+                switch ($type) {
+                    case 'bool':
+                    case 'string':
+                    case 'float':
+                    case 'int':
+                    case 'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\Time':
+                    case 'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\DateTime':
+                    case 'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\Date':
+                    case 'DateInterval':
+                        $methodLines[] = '$value = Func::mapValue($keyValue, \''.$entry.'\');';
+                        break;
+                    default:
+                        if ($isArray) {
+                            $methodLines[] = '$value = Func::mapArray($keyValue, \''.$entry.'\');';
+                        } else {
+                            $methodLines[] = '$value = Func::mapObject($keyValue, \''.$entry.'\');';
+                        }
+                        break;
                 }
+                $methodLines[] = 'if (null !== $value)';
                 switch ($type) {
                     case 'bool':
                         $methodLines[] = '$this->'.$property['accessor']['setter'].'(filter_var($value, FILTER_VALIDATE_BOOLEAN));';
@@ -590,7 +597,7 @@ class ClassGenerator
                             if ($isInline) {
                                 $value = 'array_map(function($v){return \\'.$type.'::fromKeyValue($v);}, $value)';
                             } else {
-                                $value = 'array_map(function($v){return \\'.$type.'::fromKeyValue(Func::mapArray($v, \''.$ns.$property['xml_list']['entry_name'].'\'));}, $value)';
+                                $value = 'array_map(function($v){return \\'.$type.'::fromKeyValue(Func::mapObject($v, \''.$ns.$property['xml_list']['entry_name'].'\'));}, $value)';
                             }
                         } else
                             $value = '\\'.$type.'::fromKeyValue($value)';
