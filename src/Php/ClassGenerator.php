@@ -569,10 +569,12 @@ class ClassGenerator
                     $methodLines[] = 'if (null !== $value)';
                 }
                 switch ($type) {
+                    case 'bool':
+                        $methodLines[] = '$this->'.$property['accessor']['setter'].'(filter_var($value, FILTER_VALIDATE_BOOLEAN));';
+                        break;
                     case 'string':
                     case 'float':
                     case 'int':
-                    case 'bool':
                     case 'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\Time':
                         $methodLines[] = '$this->'.$property['accessor']['setter'].'($value);';
                         break;
