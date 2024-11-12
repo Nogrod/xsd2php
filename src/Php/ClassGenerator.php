@@ -84,7 +84,7 @@ class ClassGenerator
         $docblock->setWordWrap(false);
         $paramTag = new ParamTag("value");
         if ($type && $type instanceof PHPClassOf) {
-            $paramTag->setTypes($type->getArg()->getType()->getPhpType() . "[]");
+            $paramTag->setTypes($type->getArg()->getType()->getPhpType()."[]");
         } elseif ($type) {
             $paramTag->setTypes($prop->getType()->getPhpType());
         }
@@ -93,7 +93,7 @@ class ClassGenerator
         $returnTag = new ReturnTag("mixed");
 
         if ($type && $type instanceof PHPClassOf) {
-            $returnTag->setTypes($type->getArg()->getType()->getPhpType() . "[]");
+            $returnTag->setTypes($type->getArg()->getType()->getPhpType()."[]");
         } elseif ($type) {
             $returnTag->setTypes($type->getPhpType());
         }
@@ -108,10 +108,10 @@ class ClassGenerator
         $method = new MethodGenerator("value", []);
         $method->setDocBlock($docblock);
 
-        $methodBody = "if (\$args = func_get_args()) {" . PHP_EOL;
-        $methodBody .= "    \$this->" . $prop->getName() . " = \$args[0];" . PHP_EOL;
-        $methodBody .= "}" . PHP_EOL;
-        $methodBody .= "return \$this->" . $prop->getName() . ";" . PHP_EOL;
+        $methodBody = "if (\$args = func_get_args()) {".PHP_EOL;
+        $methodBody .= "    \$this->".$prop->getName()." = \$args[0];".PHP_EOL;
+        $methodBody .= "}".PHP_EOL;
+        $methodBody .= "return \$this->".$prop->getName().";".PHP_EOL;
         $method->setBody($methodBody);
 
         $generator->addMethodFromGenerator($method);
@@ -121,7 +121,7 @@ class ClassGenerator
         $docblock->setTag(new ReturnTag("string"));
         $method = new MethodGenerator("__toString");
         $method->setDocBlock($docblock);
-        $method->setBody("return strval(\$this->" . $prop->getName() . ");");
+        $method->setBody("return strval(\$this->".$prop->getName().");");
         $generator->addMethodFromGenerator($method);
     }
 
@@ -131,7 +131,7 @@ class ClassGenerator
         $docblock = new DocBlockGenerator();
         $docblock->setWordWrap(false);
 
-        $docblock->setShortDescription("Sets a new " . $prop->getName());
+        $docblock->setShortDescription("Sets a new ".$prop->getName());
 
         if ($prop->getDoc()) {
             $docblock->setLongDescription($prop->getDoc());
@@ -145,13 +145,13 @@ class ClassGenerator
 
         $type = $prop->getType();
 
-        $method = new MethodGenerator("set" . $this->inflector->classify($prop->getName()));
+        $method = new MethodGenerator("set".$this->inflector->classify($prop->getName()));
 
         $parameter = new ParameterGenerator($prop->getName());
 
         if ($type && $type instanceof PHPClassOf) {
             $patramTag->setTypes($type->getArg()
-                                     ->getType()->getPhpType() . "[]");
+                                     ->getType()->getPhpType()."[]");
             $parameter->setType("array");
 
             if ($p = $type->getArg()->getType()->isSimpleType()
@@ -179,7 +179,7 @@ class ClassGenerator
             }
         }
 
-        $methodBody .= "\$this->" . $prop->getName() . " = \$" . $prop->getName() . ";" . PHP_EOL;
+        $methodBody .= "\$this->".$prop->getName()." = \$".$prop->getName().";".PHP_EOL;
         $methodBody .= "return \$this;";
         $method->setBody($methodBody);
         $method->setDocBlock($docblock);
@@ -194,7 +194,7 @@ class ClassGenerator
         if ($prop->getType() instanceof PHPClassOf) {
             $docblock = new DocBlockGenerator();
             $docblock->setWordWrap(false);
-            $docblock->setShortDescription("isset " . $prop->getName());
+            $docblock->setShortDescription("isset ".$prop->getName());
             if ($prop->getDoc()) {
                 $docblock->setLongDescription($prop->getDoc());
             }
@@ -206,14 +206,14 @@ class ClassGenerator
 
             $paramIndex = new ParameterGenerator("index");
 
-            $method = new MethodGenerator("isset" . $this->inflector->classify($prop->getName()), [$paramIndex]);
+            $method = new MethodGenerator("isset".$this->inflector->classify($prop->getName()), [$paramIndex]);
             $method->setDocBlock($docblock);
-            $method->setBody("return isset(\$this->" . $prop->getName() . "[\$index]);");
+            $method->setBody("return isset(\$this->".$prop->getName()."[\$index]);");
             $generator->addMethodFromGenerator($method);
 
             $docblock = new DocBlockGenerator();
             $docblock->setWordWrap(false);
-            $docblock->setShortDescription("unset " . $prop->getName());
+            $docblock->setShortDescription("unset ".$prop->getName());
             if ($prop->getDoc()) {
                 $docblock->setLongDescription($prop->getDoc());
             }
@@ -225,9 +225,9 @@ class ClassGenerator
             $docblock->setTag(new ReturnTag("void"));
 
 
-            $method = new MethodGenerator("unset" . $this->inflector->classify($prop->getName()), [$paramIndex]);
+            $method = new MethodGenerator("unset".$this->inflector->classify($prop->getName()), [$paramIndex]);
             $method->setDocBlock($docblock);
-            $method->setBody("unset(\$this->" . $prop->getName() . "[\$index]);");
+            $method->setBody("unset(\$this->".$prop->getName()."[\$index]);");
             $generator->addMethodFromGenerator($method);
         }
         // ////
@@ -235,7 +235,7 @@ class ClassGenerator
         $docblock = new DocBlockGenerator();
         $docblock->setWordWrap(false);
 
-        $docblock->setShortDescription("Gets as " . $prop->getName());
+        $docblock->setShortDescription("Gets as ".$prop->getName());
 
         if ($prop->getDoc()) {
             $docblock->setLongDescription($prop->getDoc());
@@ -245,10 +245,10 @@ class ClassGenerator
         $type = $prop->getType();
         if ($type && $type instanceof PHPClassOf) {
             $tt = $type->getArg()->getType();
-            $tag->setTypes($tt->getPhpType() . "[]");
+            $tag->setTypes($tt->getPhpType()."[]");
             if ($p = $tt->isSimpleType()) {
                 if (($t = $p->getType())) {
-                    $tag->setTypes($t->getPhpType() . "[]");
+                    $tag->setTypes($t->getPhpType()."[]");
                 }
             }
         } elseif ($type) {
@@ -264,9 +264,9 @@ class ClassGenerator
 
         $docblock->setTag($tag);
 
-        $method = new MethodGenerator("get" . $this->inflector->classify($prop->getName()));
+        $method = new MethodGenerator("get".$this->inflector->classify($prop->getName()));
         $method->setDocBlock($docblock);
-        $method->setBody("return \$this->" . $prop->getName() . ";");
+        $method->setBody("return \$this->".$prop->getName().";");
 
         $generator->addMethodFromGenerator($method);
     }
@@ -291,7 +291,7 @@ class ClassGenerator
         $patramTag = new ParamTag($propName, $type->getArg()->getType()->getPhpType());
         $docblock->setTag($patramTag);
 
-        $method = new MethodGenerator("addTo" . $this->inflector->classify($prop->getName()));
+        $method = new MethodGenerator("addTo".$this->inflector->classify($prop->getName()));
 
         $parameter = new ParameterGenerator($propName);
         $tt = $type->getArg()->getType();
@@ -311,7 +311,7 @@ class ClassGenerator
             }
         }
 
-        $methodBody = "\$this->" . $prop->getName() . "[] = \$" . $propName . ";" . PHP_EOL;
+        $methodBody = "\$this->".$prop->getName()."[] = \$".$propName.";".PHP_EOL;
         $methodBody .= "return \$this;";
         $method->setBody($methodBody);
         $method->setDocBlock($docblock);
@@ -335,7 +335,7 @@ class ClassGenerator
         if (preg_match("/[\r\n\t]/", $enumeration['value'])) {
             return;
         }
-        $docblock = new DocBlockGenerator("Constant for " . var_export($enumeration['value'], true) . " value.");
+        $docblock = new DocBlockGenerator("Constant for ".var_export($enumeration['value'], true)." value.");
         if (trim($enumeration['doc'])) {
             $docblock->setLongDescription(trim($enumeration['doc']));
         }
@@ -345,7 +345,7 @@ class ClassGenerator
 
             return mb_strtoupper(trim($s, '_'));
         };
-        $prop = new PropertyGenerator("VAL_" . $constantNameFixer($enumeration['value']), $enumeration['value'], PropertyGenerator::FLAG_CONSTANT);
+        $prop = new PropertyGenerator("VAL_".$constantNameFixer($enumeration['value']), $enumeration['value'], PropertyGenerator::FLAG_CONSTANT);
         $prop->setDocBlock($docblock);
         $generator->addPropertyFromGenerator($prop);
         return $prop->getDefaultValue()->getValue();
@@ -375,10 +375,10 @@ class ClassGenerator
 
         if ($type && $type instanceof PHPClassOf) {
             $tt = $type->getArg()->getType();
-            $tag->setTypes($tt->getPhpType() . "[]");
+            $tag->setTypes($tt->getPhpType()."[]");
             if ($p = $tt->isSimpleType()) {
                 if (($t = $p->getType())) {
-                    $tag->setTypes($t->getPhpType() . "[]");
+                    $tag->setTypes($t->getPhpType()."[]");
                 }
             }
             $generatedProp->setDefaultValue($type->getArg()->getDefault());
@@ -398,7 +398,7 @@ class ClassGenerator
     public function generate(PHPClass $type, bool $noSabre = false)
     {
         $class = new Generator\ClassGenerator();
-        $docblock = new DocBlockGenerator("Class representing " . $type->getName());
+        $docblock = new DocBlockGenerator("Class representing ".$type->getName());
         $docblock->setWordWrap(false);
         if ($type->getDoc()) {
             $docblock->setLongDescription($type->getDoc());
@@ -418,7 +418,7 @@ class ClassGenerator
 
                 if ($extends->getNamespace() != $type->getNamespace()) {
                     if ($extends->getName() == $type->getName()) {
-                        $class->addUse($type->getExtends()->getFullName(), $extends->getName() . "Base");
+                        $class->addUse($type->getExtends()->getFullName(), $extends->getName()."Base");
                     } else {
                         $class->addUse($extends->getFullName());
                     }
@@ -474,7 +474,7 @@ class ClassGenerator
                 }
                 $ns = '{'.$property['xml_element']['namespace'].'}';
                 if (isset($property['xml_list']) && ($property['xml_list']['inline'] || $property['xml_list']['skip_when_empty'])) {
-                    $methodLines[] = 'if (null !== $value && !empty($this->'.$property['accessor']['getter'] . '()))';
+                    $methodLines[] = 'if (null !== $value && [] !== $this->'.$property['accessor']['getter'].'())';
                     $arrayMap = 'array_map(function($v){return ["'.$property['xml_list']['entry_name'].'" => $v];}, $value)';
                     if ($property['xml_list']['inline'])
                         $methodLines[] = '$writer->write('.$arrayMap.');';
@@ -544,66 +544,55 @@ class ClassGenerator
                 $class->addUse(Func::class);
                 $isAttribute = isset($property['xml_attribute']) && $property['xml_attribute'];
                 $isValue = isset($property['xml_value']) && $property['xml_value'];
+                $isInline = isset($property['xml_list']) && $property['xml_list']['inline'];
                 $ns = $isAttribute ? '' : '{'.$property['xml_element']['namespace'].'}';
                 $entry = $isValue ? 'value' : $ns.$property['serialized_name'];
                 $type = $property['type'];
                 $isArray = false;
-                $isInline = false;
                 preg_match('/array<(?P<type>.+)>/', $type, $hits);
                 if (isset($hits['type'])) {
                     $type = $hits['type'];
                     $isArray = true;
-                    $isInline = isset($property['xml_list']) && $property['xml_list']['inline'];
                 }
                 switch ($type) {
                     case 'bool':
+                        $mapType = 'mapValue';
+                        $value = 'filter_var($value, FILTER_VALIDATE_BOOLEAN)';
+                        break;
                     case 'string':
                     case 'float':
                     case 'int':
                     case 'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\Time':
+                        $mapType = 'mapValue';
+                        $value = '$value'; // TODO convert to type?
+                        break;
                     case 'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\DateTime':
                     case 'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\Date':
+                        $mapType = 'mapValue';
+                        $value = 'new \DateTime($value)';
+                        break;
                     case 'DateInterval':
-                        $methodLines[] = '$value = Func::mapValue($keyValue, \''.$entry.'\');';
+                        $mapType = 'mapValue';
+                        $value = 'new \DateInterval($value)';
                         break;
                     default:
-                        if ($isArray) {
-                            $methodLines[] = '$value = Func::mapArray($keyValue, \''.$entry.'\');';
-                        } else {
-                            $methodLines[] = '$value = Func::mapObject($keyValue, \''.$entry.'\');';
-                        }
+                        $mapType = 'mapObject';
+                        $value = '\\'.$type.'::fromKeyValue($value)';
                         break;
                 }
+                $methodLines[] = '$value = Func::'.($isArray ? 'mapArray' : $mapType).'($keyValue, \''.$entry.'\''.($isArray && $mapType === 'mapValue' ? ', true' : '').');';
                 $methodLines[] = 'if (null !== $value)';
-                switch ($type) {
-                    case 'bool':
-                        $methodLines[] = '$this->'.$property['accessor']['setter'].'(filter_var($value, FILTER_VALIDATE_BOOLEAN));';
-                        break;
-                    case 'string':
-                    case 'float':
-                    case 'int':
-                    case 'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\Time':
-                        $methodLines[] = '$this->'.$property['accessor']['setter'].'($value);';
-                        break;
-                    case 'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\DateTime':
-                    case 'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\Date':
-                        $methodLines[] = '$this->'.$property['accessor']['setter'].'(new \DateTime($value));';
-                        break;
-                    case 'DateInterval':
-                        $methodLines[] = '$this->'.$property['accessor']['setter'].'(new \DateInterval($value));';
-                        break;
-                    default:
-                        if ($isArray) {
-                            if ($isInline) {
-                                $value = 'array_map(function($v){return \\'.$type.'::fromKeyValue($v);}, $value)';
-                            } else {
-                                $value = 'array_map(function($v){return \\'.$type.'::fromKeyValue(Func::mapObject($v, \''.$ns.$property['xml_list']['entry_name'].'\'));}, $value)';
-                            }
-                        } else
-                            $value = '\\'.$type.'::fromKeyValue($value)';
-                        $methodLines[] = '$this->'.$property['accessor']['setter'].'('.$value.');';
-                        break;
+                if ($isArray) {
+                    if ($isInline) {
+                        if ($value !== '$value') { // TODO no array map wrap correct?
+                            $value = 'array_map(function($v){return '.str_replace('$value', '$v', $value).';}, $value)';
+                        }
+                    } else {
+                        $entryName = $ns.$property['xml_list']['entry_name'];
+                        $value = 'array_map(function($v){return '.str_replace('$value', 'Func::'.$mapType.'($v, \''.$entryName.'\')', $value).';}, $value)';
+                    }
                 }
+                $methodLines[] = '$this->'.$property['accessor']['setter'].'('.$value.');';
             }
         }
         $method->setBody(implode(PHP_EOL, $methodLines));
