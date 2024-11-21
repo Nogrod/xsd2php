@@ -473,7 +473,7 @@ class ClassGenerator
                     continue;
                 }
                 $ns = '{'.$property['xml_element']['namespace'].'}';
-                if (isset($property['xml_list']) && ($property['xml_list']['inline'] || $property['xml_list']['skip_when_empty'])) {
+                if (isset($property['xml_list'])/* && ($property['xml_list']['inline'] || $property['xml_list']['skip_when_empty'])*/) {
                     $methodLines[] = 'if (null !== $value && [] !== $this->'.$property['accessor']['getter'].'())';
                     $arrayMap = 'array_map(function($v){return ["'.$property['xml_list']['entry_name'].'" => $v];}, $value)';
                     if ($property['xml_list']['inline'])
