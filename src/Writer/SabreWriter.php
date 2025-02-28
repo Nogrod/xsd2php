@@ -95,7 +95,7 @@ class SabreWriter extends Writer implements LoggerAwareInterface
                 $maps[] = '\''.$entry.'\' => \''.$class.'\',';
             }
         }
-        asort($maps);
+        ksort($maps);
         $method = new MethodGenerator('GetElements');
         $method->setStatic(true);
         $method->setBody('return ['.implode(PHP_EOL, $maps).'];');
