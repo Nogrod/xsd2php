@@ -507,6 +507,7 @@ class ClassGenerator
         $method = new MethodGenerator('xmlDeserialize');
         $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
         $method->setStatic(true);
+        $method->setReturnType('mixed');
         $param = new ParameterGenerator('reader');
         $param->setType('\Sabre\Xml\Reader');
         $method->setParameter($param);
@@ -518,6 +519,7 @@ class ClassGenerator
         $method = new MethodGenerator('fromKeyValue');
         $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
         $method->setStatic(true);
+        $method->setReturnType('self');
         $param = new ParameterGenerator('keyValue');
         //$param->setType('array');
         //$param->setPassedByReference(true);
@@ -531,6 +533,7 @@ class ClassGenerator
 
         $method = new MethodGenerator('setKeyValue');
         $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
+        $method->setReturnType('void');
         $param = new ParameterGenerator('keyValue');
         //$param->setType('array');
         //$param->setPassedByReference(true);

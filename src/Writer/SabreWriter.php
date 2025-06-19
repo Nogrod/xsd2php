@@ -84,6 +84,7 @@ class SabreWriter extends Writer implements LoggerAwareInterface
         $method = new MethodGenerator('Get');
         $method->setStatic(true);
         $method->setBody('return ['.implode(PHP_EOL, $maps).'];');
+        $method->setReturnType('array');
         $classGen->addMethodFromGenerator($method);
 
         $maps = [];
@@ -99,11 +100,13 @@ class SabreWriter extends Writer implements LoggerAwareInterface
         $method = new MethodGenerator('GetElements');
         $method->setStatic(true);
         $method->setBody('return ['.PHP_EOL.implode(PHP_EOL, $maps).PHP_EOL.'];');
+        $method->setReturnType('array');
         $classGen->addMethodFromGenerator($method);
 
         $method = new MethodGenerator('GetNamespaces');
         $method->setStatic(true);
         $method->setBody('return ['.implode(PHP_EOL, array_map(function($k) { return '\''.$k.'\' => \'\','; }, array_keys($this->config['namespaces']))).'];');
+        $method->setReturnType('array');
         $classGen->addMethodFromGenerator($method);
 
         /*$method = new MethodGenerator('CheckParent');
