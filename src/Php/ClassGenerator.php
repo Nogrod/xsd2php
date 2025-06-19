@@ -519,7 +519,7 @@ class ClassGenerator
         $method = new MethodGenerator('fromKeyValue');
         $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
         $method->setStatic(true);
-        $method->setReturnType('self');
+        $method->setReturnType($class->getName());
         $param = new ParameterGenerator('keyValue');
         //$param->setType('array');
         //$param->setPassedByReference(true);
