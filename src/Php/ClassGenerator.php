@@ -519,7 +519,12 @@ class ClassGenerator
         $method = new MethodGenerator('fromKeyValue');
         $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
         $method->setStatic(true);
-        $method->setReturnType($class->getName());
+        /*$className     = $class->getName();
+        $namespaceName = $class->getNamespaceName();
+        if ($namespaceName !== null) {
+            $className = $namespaceName . '\\' . $className;
+        }*/
+        $method->setReturnType($className);
         $param = new ParameterGenerator('keyValue');
         //$param->setType('array');
         //$param->setPassedByReference(true);
