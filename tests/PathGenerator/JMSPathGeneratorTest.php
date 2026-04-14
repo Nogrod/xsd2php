@@ -24,7 +24,7 @@ class JMSPathGeneratorTest extends TestCase
 
     public function testNoNs()
     {
-        $this->setExpectedException('GoetasWebservices\Xsd\XsdToPhp\PathGenerator\PathGeneratorException');
+        $this->expectException('GoetasWebservices\Xsd\XsdToPhp\PathGenerator\PathGeneratorException');
         $generator = new Psr4PathGenerator(array(
             'myns2\\' => $this->tmpdir
         ));

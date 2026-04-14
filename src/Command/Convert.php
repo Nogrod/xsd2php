@@ -2,24 +2,21 @@
 namespace GoetasWebservices\Xsd\XsdToPhp\Command;
 
 use Symfony\Component\Config\FileLocator;
-use Symfony\Component\Config\Loader\DelegatingLoader;
-use Symfony\Component\Config\Loader\LoaderResolver;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 
 class Convert extends Command
 {
     /**
-     * @var ContainerInterface
+     * @var ContainerBuilder
      */
     protected $container;
 
-    public function __construct(ContainerInterface $container)
+    public function __construct(ContainerBuilder $container)
     {
         $this->container = $container;
         parent::__construct();
@@ -29,7 +26,7 @@ class Convert extends Command
      *
      * @see Command
      */
-    protected function configure()
+    protected function configure(): void
     {
         $this->setName('convert');
         $this->setDescription("Convert a XSD file into PHP classes and JMS serializer metadata files");
@@ -43,7 +40,7 @@ class Convert extends Command
      *
      * @see Console\Command\Command
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $this->loadConfigurations($input->getArgument('config'));
         $src = $input->getArgument('src');
@@ -74,14 +71,11 @@ class Convert extends Command
         return count($items) ? 0 : 255;
     }
 
-    protected function loadConfigurations($configFile)
+    protected function loadConfigurations(string $configFile): void
     {
         $locator = new FileLocator('.');
         $yaml = new YamlFileLoader($this->container, $locator);
-        $xml = new XmlFileLoader($this->container, $locator);
-
-        $delegatingLoader = new DelegatingLoader(new LoaderResolver(array($yaml, $xml)));
-        $delegatingLoader->load($configFile);
+        $yaml->load($configFile);
 
         $this->container->compile();
 

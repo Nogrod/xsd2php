@@ -2,7 +2,6 @@
 namespace GoetasWebservices\Xsd\XsdToPhp\Tests\Converter;
 
 use GoetasWebservices\Xsd\XsdToPhp\Naming\ShortNamingStrategy;
-use PHPUnit\Framework\Assert;
 use PHPUnit\Framework\TestCase;
 
 class AbstractXsdConverterTest extends TestCase
@@ -25,7 +24,7 @@ class AbstractXsdConverterTest extends TestCase
         };
         $this->converter->addAliasMap('http://www.example.com', "myType", $f);
 
-        $handlers = Assert::readAttribute($this->converter, 'typeAliases');
+        $handlers = $this->readProtectedProperty($this->converter, 'typeAliases');
 
         $this->assertArrayHasKey('http://www.example.com', $handlers);
         $this->assertArrayHasKey('myType', $exmpleHandlers = $handlers['http://www.example.com']);
@@ -34,7 +33,7 @@ class AbstractXsdConverterTest extends TestCase
 
     public function testDefaultAliases()
     {
-        $handlers = Assert::readAttribute($this->converter, 'typeAliases');
+        $handlers = $this->readProtectedProperty($this->converter, 'typeAliases');
 
         $this->assertArrayHasKey('http://www.w3.org/2001/XMLSchema', $handlers);
         $defaultHandlers = $handlers['http://www.w3.org/2001/XMLSchema'];
@@ -48,9 +47,19 @@ class AbstractXsdConverterTest extends TestCase
     {
         $this->converter->addNamespace('http://www.example.com', 'some\php\ns');
 
-        $namespaces = Assert::readAttribute($this->converter, 'namespaces');
+        $namespaces = $this->readProtectedProperty($this->converter, 'namespaces');
 
         $this->assertArrayHasKey('http://www.example.com', $namespaces);
         $this->assertEquals('some\php\ns', $namespaces['http://www.example.com']);
     }
+
+    private function readProtectedProperty(object $object, string $property)
+    {
+        $reflection = new \ReflectionClass($object);
+        $prop = $reflection->getProperty($property);
+        $prop->setAccessible(true);
+
+        return $prop->getValue($object);
+    }
 }
+

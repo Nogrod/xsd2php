@@ -6,15 +6,10 @@ use Symfony\Component\Config\Definition\ConfigurationInterface;
 
 class Configuration implements ConfigurationInterface
 {
-    public function getConfigTreeBuilder()
+    public function getConfigTreeBuilder(): TreeBuilder
     {
         $treeBuilder = new TreeBuilder('xsd2php');
-
-        if (method_exists($treeBuilder, 'getRootNode')) {
-            $rootNode = $treeBuilder->getRootNode();
-        } else {
-            $rootNode = $treeBuilder->root('xsd2php');
-        }
+        $rootNode = $treeBuilder->getRootNode();
 
         $rootNode
             ->children()
@@ -26,17 +21,17 @@ class Configuration implements ConfigurationInterface
                     ->defaultValue('psr4')
                     ->cannotBeEmpty()
                 ->end()
-                ->arrayNode('namespaces')->fixXmlConfig('namespace')
+                ->arrayNode('namespaces')
                     ->cannotBeEmpty()->isRequired()
                     ->requiresAtLeastOneElement()
                     ->prototype('scalar')
                     ->end()
                 ->end()
-                ->arrayNode('known_locations')->fixXmlConfig('known_location')
+                ->arrayNode('known_locations')
                     ->prototype('scalar')
                     ->end()
                 ->end()
-                ->arrayNode('known_namespace_locations')->fixXmlConfig('known_namespace_location')
+                ->arrayNode('known_namespace_locations')
                     ->prototype('scalar')
                     ->end()
                 ->end()
@@ -48,23 +43,23 @@ class Configuration implements ConfigurationInterface
                         ->end()
                     ->end()
                 ->end()
-                ->arrayNode('destinations_php')->fixXmlConfig('destination')
+                ->arrayNode('destinations_php')
                     ->cannotBeEmpty()->isRequired()
                     ->requiresAtLeastOneElement()
                     ->prototype('scalar')
                     ->end()
                 ->end()
-                ->arrayNode('destinations_jms')->fixXmlConfig('destination')
+                ->arrayNode('destinations_jms')
                     ->cannotBeEmpty()->isRequired()
                     ->requiresAtLeastOneElement()
                     ->prototype('scalar')
                     ->end()
                 ->end()
-                ->arrayNode('destinations_validation')->fixXmlConfig('destination')
+                ->arrayNode('destinations_validation')
                     ->prototype('scalar')
                     ->end()
                 ->end()
-                ->arrayNode('aliases')->fixXmlConfig('alias')
+                ->arrayNode('aliases')
                     ->prototype('array')
                         ->prototype('scalar')
                         ->end()
