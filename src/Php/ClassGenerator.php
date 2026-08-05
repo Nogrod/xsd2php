@@ -150,9 +150,11 @@ class ClassGenerator
         $parameter = new ParameterGenerator($prop->getName());
 
         if ($type && $type instanceof PHPClassOf) {
-            $patramTag->setTypes($type->getArg()
-                                     ->getType()->getPhpType()."[]");
-            $parameter->setType("array");
+            // iterable rather than array: an inline list may be handed a Generator so
+            // that xmlSerialize() can stream it instead of holding every entry at once.
+            $patramTag->setTypes("iterable<".$type->getArg()
+                                     ->getType()->getPhpType().">");
+            $parameter->setType("iterable");
 
             if ($p = $type->getArg()->getType()->isSimpleType()
             ) {
@@ -244,11 +246,12 @@ class ClassGenerator
         $tag = new ReturnTag("mixed");
         $type = $prop->getType();
         if ($type && $type instanceof PHPClassOf) {
+            // Matches the setter: the value is an array unless a lazy iterable was set.
             $tt = $type->getArg()->getType();
-            $tag->setTypes($tt->getPhpType()."[]");
+            $tag->setTypes("iterable<".$tt->getPhpType().">");
             if ($p = $tt->isSimpleType()) {
                 if (($t = $p->getType())) {
-                    $tag->setTypes($t->getPhpType()."[]");
+                    $tag->setTypes("iterable<".$t->getPhpType().">");
                 }
             }
         } elseif ($type) {
@@ -311,7 +314,10 @@ class ClassGenerator
             }
         }
 
-        $methodBody = "\$this->".$prop->getName()."[] = \$".$propName.";".PHP_EOL;
+        // The property may hold a lazy iterable, which cannot be appended to.
+        $methodBody = "if (!is_array(\$this->".$prop->getName()."))".PHP_EOL;
+        $methodBody .= "throw new \\LogicException('".$prop->getName()." is a lazy iterable and cannot be appended to; set an array instead.');".PHP_EOL;
+        $methodBody .= "\$this->".$prop->getName()."[] = \$".$propName.";".PHP_EOL;
         $methodBody .= "return \$this;";
         $method->setBody($methodBody);
         $method->setDocBlock($docblock);
@@ -474,12 +480,25 @@ class ClassGenerator
                 }
                 $ns = '{'.$property['xml_element']['namespace'].'}';
                 if (isset($property['xml_list'])/* && ($property['xml_list']['inline'] || $property['xml_list']['skip_when_empty'])*/) {
-                    $methodLines[] = 'if (null !== $value && [] !== $this->'.$property['accessor']['getter'].'())';
-                    $arrayMap = 'array_map(function($v){return ["'.$property['xml_list']['entry_name'].'" => $v];}, $value)';
-                    if ($property['xml_list']['inline'])
-                        $methodLines[] = '$writer->write('.$arrayMap.');';
-                    else
+                    if ($property['xml_list']['inline']) {
+                        // Written entry by entry so the property may hold a lazy
+                        // iterable (a Generator) instead of a materialised array.
+                        $methodLines[] = 'if (null !== $value) {';
+                        $methodLines[] = 'foreach ($value as $v) {';
+                        $methodLines[] = '$writer->write([["'.$property['xml_list']['entry_name'].'" => $v]]);';
+                        $methodLines[] = '}';
+                        $methodLines[] = '}';
+                    } else {
+                        // Wrapped lists must not emit the wrapper element when empty,
+                        // which cannot be decided without consuming the iterable first.
+                        $arrayMap = 'array_map(function($v){return ["'.$property['xml_list']['entry_name'].'" => $v];}, $value)';
+                        $methodLines[] = 'if (null !== $value) {';
+                        $methodLines[] = '$value = is_array($value) ? $value : iterator_to_array($value);';
+                        $methodLines[] = 'if ([] !== $value) {';
                         $methodLines[] = '$writer->writeElement("'.$ns.$property['serialized_name'].'", '.$arrayMap.');';
+                        $methodLines[] = '}';
+                        $methodLines[] = '}';
+                    }
                 } else {
                     $methodLines[] = 'if (null !== $value)';
                     $methodLines[] = '$writer->writeElement("'.$ns.$property['serialized_name'].'", $value);';
