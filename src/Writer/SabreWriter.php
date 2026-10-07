@@ -18,7 +18,7 @@ class SabreWriter extends Writer implements LoggerAwareInterface
     private $pathGenerator;
     private $classWriter;
 
-    public function __construct(PathGenerator $pathGenerator, PHPClassWriter $classWriter, LoggerInterface $logger = null)
+    public function __construct(PathGenerator $pathGenerator, PHPClassWriter $classWriter, ?LoggerInterface $logger = null)
     {
         $this->pathGenerator = $pathGenerator;
         $this->classWriter = $classWriter;

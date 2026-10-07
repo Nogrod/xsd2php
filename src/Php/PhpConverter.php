@@ -26,7 +26,7 @@ use Psr\Log\LoggerInterface;
 class PhpConverter extends AbstractConverter
 {
 
-    public function __construct(NamingStrategy $namingStrategy, LoggerInterface $loggerInterface = null)
+    public function __construct(NamingStrategy $namingStrategy, ?LoggerInterface $loggerInterface = null)
     {
         parent::__construct($namingStrategy, $loggerInterface);
 
