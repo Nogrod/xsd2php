@@ -436,6 +436,7 @@ class ClassGenerator
             if (!$noSabre) {
                 $this->addSerialization($class, $type);
                 $this->addDeserialization($class, $type);
+                $this->addJsonSerialization($class, $type);
             }
             return $class;
         }
@@ -691,6 +692,54 @@ class ClassGenerator
         if ($isBase) {
             $ifaces = $class->getImplementedInterfaces();
             $ifaces[] = '\Sabre\Xml\XmlSerializable';
+            $class->setImplementedInterfaces($ifaces);
+        }
+    }
+
+    /**
+     * jsonSerialize(): the properties keyed by element and attribute name, the value of
+     * simple content as __value, without the ones that are null.
+     */
+    private function addJsonSerialization(Generator\ClassGenerator $class, PHPClass $type)
+    {
+        if ($type->getMeta() === null) return;
+        $isBase = $class->getExtendedClass() === null;
+        $meta = $type->getMeta();
+        $className = array_key_first($meta);
+        $class->addUse(Func::class);
+
+        $lines = [$isBase ? '$data = [];' : '$data = parent::jsonProperties();'];
+        foreach ($meta[$className]['properties'] ?? [] as $name => $property) {
+            [$kind, , $isArray] = $this->kindOf($property['type']);
+            $key = (isset($property['xml_value']) && $property['xml_value']) ? '__value' : $property['serialized_name'];
+            $isDate = in_array($kind, ['datetime', 'date', 'time'], true);
+            if ($isArray) {
+                $expr = 'Func::jsonList($this->'.$name.')';
+                if ($isDate) {
+                    $expr = 'null !== ($v = '.$expr.') ? array_map([Func::class, \'jsonDate\'], $v) : null';
+                }
+            } else {
+                $expr = $isDate ? 'Func::jsonDate($this->'.$name.')' : '$this->'.$name;
+            }
+            $lines[] = '$data['.var_export($key, true).'] = '.$expr.';';
+        }
+        $lines[] = 'return $data;';
+
+        $method = new MethodGenerator('jsonProperties');
+        $method->setVisibility(MethodGenerator::VISIBILITY_PROTECTED);
+        $method->setReturnType('array');
+        $method->setBody(implode(PHP_EOL, $lines));
+        $class->addMethodFromGenerator($method);
+
+        if ($isBase) {
+            $method = new MethodGenerator('jsonSerialize');
+            $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
+            $method->setReturnType('mixed');
+            $method->setBody('return array_filter($this->jsonProperties(), static fn ($v) => null !== $v);');
+            $class->addMethodFromGenerator($method);
+
+            $ifaces = $class->getImplementedInterfaces();
+            $ifaces[] = '\JsonSerializable';
             $class->setImplementedInterfaces($ifaces);
         }
     }

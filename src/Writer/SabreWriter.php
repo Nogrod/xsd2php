@@ -28,10 +28,9 @@ class SabreWriter extends Writer implements LoggerAwareInterface
     public function write(array $items, bool $noSabre = false)
     {
         $destinations_php = $this->config['destinations_php'];
-        $jmsPaths = $this->config['destinations_jms'];
         $classGen = new ClassGenerator();
         $classGen->setName(basename($destinations_php[array_key_first($destinations_php)]) . 'ClassMap');
-        $classGen->setNamespaceName(array_key_first($jmsPaths) . "\\Client");
+        $classGen->setNamespaceName(array_key_first($destinations_php) . "\\Client");
         $classGen->addUse('\Sabre\Xml\Writer');
         $maps = [];
         /*foreach ($items as $item) {
