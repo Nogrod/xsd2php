@@ -155,6 +155,12 @@ abstract class AbstractConverter
         $this->addAliasMap("http://www.w3.org/2001/XMLSchema", "anyURI", function (Type $type) {
             return "string";
         });
+        $this->addAliasMap("http://www.w3.org/2001/XMLSchema", "base64Binary", function (Type $type) {
+            return "string";
+        });
+        $this->addAliasMap("http://www.w3.org/2001/XMLSchema", "hexBinary", function (Type $type) {
+            return "string";
+        });
         $this->addAliasMap("http://www.w3.org/2001/XMLSchema", "byte", function (Type $type) {
             return "string";
         });

@@ -445,68 +445,109 @@ class ClassGenerator
     {
         if ($type->getMeta() === null) return;
         $isBase = $class->getExtendedClass() === null;
-        //$class->addUse('\Sabre\Xml\Writer');
-        $method = new MethodGenerator('xmlSerialize');
-        $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
-        $param = new ParameterGenerator('writer');
-        $param->setType('\Sabre\Xml\Writer');
-        $method->setParameter($param);
-        $method->setReturnType('void');
         $meta = $type->getMeta();
         $className = array_key_first($meta);
-        $methodLines = [];
+
+        // XMLWriter silently drops attributes written after text or child elements, so
+        // attributes of the whole class hierarchy go first, then the value and elements.
+        $attributeLines = [];
+        $elementLines = [];
+        if (isset($meta[$className]['xml_root_namespace'])) {
+            // Global elements (API requests and responses) always carry their own xmlns,
+            // even inside a parent in the same namespace: eBay processes the messages of
+            // a BulkDataExchangeRequests file one by one and rejects them without it.
+            $class->addUse(Func::class);
+            $attributeLines[] = 'Func::writeRootNamespace($writer, '.var_export($meta[$className]['xml_root_namespace'], true).');';
+        }
         if (!$isBase) {
-            $methodLines[] = 'parent::xmlSerialize($writer);';
+            $attributeLines[] = 'parent::xmlSerializeAttributes($writer);';
+            $elementLines[] = 'parent::xmlSerializeElements($writer);';
         } elseif (isset($meta[$className]['virtual_properties'])) {
             foreach ($meta[$className]['virtual_properties'] as $property) {
                 if (isset($property['xml_attribute']) && $property['xml_attribute']) {
-                    $methodLines[] = '$writer->writeAttribute("'.$property['serialized_name'].'", '.$property['exp'].');';
+                    if ($property['serialized_name'] === 'xmlns') {
+                        // Only declared where it is not already the default namespace in scope
+                        $class->addUse(Func::class);
+                        $attributeLines[] = 'Func::writeDefaultNamespace($writer, '.$property['exp'].');';
+                    } else {
+                        $attributeLines[] = '$writer->writeAttribute("'.$property['serialized_name'].'", '.$property['exp'].');';
+                    }
                 }
             }
         }
         if (isset($meta[$className]['properties'])) {
             foreach ($meta[$className]['properties'] as $property) {
                 $isBool = $property['type'] === 'bool';
-                $methodLines[] = '$value = $this->'.$property['accessor']['getter'].'();';
-                if ($isBool) $methodLines[] = '$value = null !== $value ? ($value ? \'true\' : \'false\') : null;';
-                if (isset($property['xml_value']) && $property['xml_value']) {
-                    $methodLines[] = '$writer->write($value);';
+                $lines = [];
+                $lines[] = '$value = $this->'.$property['accessor']['getter'].'();';
+                if ($isBool) $lines[] = '$value = null !== $value ? ($value ? \'true\' : \'false\') : null;';
+                if (isset($property['xml_attribute']) && $property['xml_attribute']) {
+                    $lines[] = 'if (null !== $value)';
+                    $lines[] = '$writer->writeAttribute("'.$property['serialized_name'].'", $value);';
+                    array_push($attributeLines, ...$lines);
                     continue;
                 }
-                if (isset($property['xml_attribute']) && $property['xml_attribute']) {
-                    $methodLines[] = 'if (null !== $value)';
-                    $methodLines[] = '$writer->writeAttribute("'.$property['serialized_name'].'", $value);';
+                if (isset($property['xml_value']) && $property['xml_value']) {
+                    $lines[] = '$writer->write($value);';
+                    array_push($elementLines, ...$lines);
                     continue;
                 }
                 $ns = '{'.$property['xml_element']['namespace'].'}';
-                if (isset($property['xml_list'])/* && ($property['xml_list']['inline'] || $property['xml_list']['skip_when_empty'])*/) {
+                if (isset($property['xml_list'])) {
+                    $entryNs = $property['xml_list']['namespace'] ?? $property['xml_element']['namespace'] ?? null;
+                    $entry = (null !== $entryNs ? '{'.$entryNs.'}' : '').$property['xml_list']['entry_name'];
+                    // Written entry by entry so the property may hold a lazy iterable
+                    // (a Generator) instead of a materialised array.
                     if ($property['xml_list']['inline']) {
-                        // Written entry by entry so the property may hold a lazy
-                        // iterable (a Generator) instead of a materialised array.
-                        $methodLines[] = 'if (null !== $value) {';
-                        $methodLines[] = 'foreach ($value as $v) {';
-                        $methodLines[] = '$writer->write([["'.$property['xml_list']['entry_name'].'" => $v]]);';
-                        $methodLines[] = '}';
-                        $methodLines[] = '}';
+                        $lines[] = 'if (null !== $value) {';
+                        $lines[] = 'foreach ($value as $v) {';
+                        $lines[] = '$writer->writeElement("'.$entry.'", $v);';
+                        $lines[] = '}';
+                        $lines[] = '}';
                     } else {
-                        // Wrapped lists must not emit the wrapper element when empty,
-                        // which cannot be decided without consuming the iterable first.
-                        $arrayMap = 'array_map(function($v){return ["'.$property['xml_list']['entry_name'].'" => $v];}, $value)';
-                        $methodLines[] = 'if (null !== $value) {';
-                        $methodLines[] = '$value = is_array($value) ? $value : iterator_to_array($value);';
-                        $methodLines[] = 'if ([] !== $value) {';
-                        $methodLines[] = '$writer->writeElement("'.$ns.$property['serialized_name'].'", '.$arrayMap.');';
-                        $methodLines[] = '}';
-                        $methodLines[] = '}';
+                        // The wrapper is only opened with the first entry: empty lists emit nothing.
+                        $lines[] = 'if (null !== $value) {';
+                        $lines[] = '$open = false;';
+                        $lines[] = 'foreach ($value as $v) {';
+                        $lines[] = 'if (!$open) {';
+                        $lines[] = '$writer->startElement("'.$ns.$property['serialized_name'].'");';
+                        $lines[] = '$open = true;';
+                        $lines[] = '}';
+                        $lines[] = '$writer->writeElement("'.$entry.'", $v);';
+                        $lines[] = '}';
+                        $lines[] = 'if ($open) {';
+                        $lines[] = '$writer->endElement();';
+                        $lines[] = '}';
+                        $lines[] = '}';
                     }
                 } else {
-                    $methodLines[] = 'if (null !== $value)';
-                    $methodLines[] = '$writer->writeElement("'.$ns.$property['serialized_name'].'", $value);';
+                    $lines[] = 'if (null !== $value)';
+                    $lines[] = '$writer->writeElement("'.$ns.$property['serialized_name'].'", $value);';
                 }
+                array_push($elementLines, ...$lines);
             }
         }
-        $method->setBody(implode(PHP_EOL, $methodLines));
-        $class->addMethodFromGenerator($method);
+
+        if ($isBase) {
+            $method = new MethodGenerator('xmlSerialize');
+            $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
+            $param = new ParameterGenerator('writer');
+            $param->setType('\Sabre\Xml\Writer');
+            $method->setParameter($param);
+            $method->setReturnType('void');
+            $method->setBody('$this->xmlSerializeAttributes($writer);'.PHP_EOL.'$this->xmlSerializeElements($writer);');
+            $class->addMethodFromGenerator($method);
+        }
+        foreach (['xmlSerializeAttributes' => $attributeLines, 'xmlSerializeElements' => $elementLines] as $name => $lines) {
+            $method = new MethodGenerator($name);
+            $method->setVisibility(MethodGenerator::VISIBILITY_PROTECTED);
+            $param = new ParameterGenerator('writer');
+            $param->setType('\Sabre\Xml\Writer');
+            $method->setParameter($param);
+            $method->setReturnType('void');
+            $method->setBody(implode(PHP_EOL, $lines));
+            $class->addMethodFromGenerator($method);
+        }
         if ($isBase) {
             $ifaces = $class->getImplementedInterfaces();
             $ifaces[] = '\Sabre\Xml\XmlSerializable';
@@ -607,18 +648,23 @@ class ClassGenerator
                         $value = '\\'.$type.'::fromKeyValue($value)';
                         break;
                 }
+                if ($isArray && $value !== '$value') {
+                    $value = 'array_map(function($v){return '.str_replace('$value', '$v', $value).';}, $value)';
+                }
+                if ($isArray && !$isInline) {
+                    // Wrapped list: take the children of the single wrapper element, then
+                    // collect every entry among them.
+                    $entryNs = $property['xml_list']['namespace'] ?? $property['xml_element']['namespace'] ?? null;
+                    $entryName = (null !== $entryNs ? '{'.$entryNs.'}' : '').$property['xml_list']['entry_name'];
+                    $methodLines[] = '$value = Func::mapObject($keyValue, \''.$entry.'\');';
+                    $methodLines[] = 'if (null !== $value) {';
+                    $methodLines[] = '$value = Func::mapArray($value, \''.$entryName.'\''.($mapType === 'mapValue' ? ', true' : '').');';
+                    $methodLines[] = '$this->'.$property['accessor']['setter'].'('.$value.');';
+                    $methodLines[] = '}';
+                    continue;
+                }
                 $methodLines[] = '$value = Func::'.($isArray ? 'mapArray' : $mapType).'($keyValue, \''.$entry.'\''.($isArray && $mapType === 'mapValue' ? ', true' : '').');';
                 $methodLines[] = 'if (null !== $value)';
-                if ($isArray) {
-                    if ($isInline) {
-                        if ($value !== '$value') { // TODO no array map wrap correct?
-                            $value = 'array_map(function($v){return '.str_replace('$value', '$v', $value).';}, $value)';
-                        }
-                    } else {
-                        $entryName = $ns.$property['xml_list']['entry_name'];
-                        $value = 'array_map(function($v){return '.str_replace('$value', 'Func::'.$mapType.'($v, \''.$entryName.'\')', $value).';}, $value)';
-                    }
-                }
                 $methodLines[] = '$this->'.$property['accessor']['setter'].'('.$value.');';
             }
         }
