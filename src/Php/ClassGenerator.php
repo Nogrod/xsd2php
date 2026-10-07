@@ -441,12 +441,152 @@ class ClassGenerator
         }
     }
 
+    private const SCALAR_KINDS = [
+        'string' => 'string',
+        'int' => 'int',
+        'float' => 'float',
+        'bool' => 'bool',
+        'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\DateTime' => 'datetime',
+        'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\Date' => 'date',
+        'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\Time' => 'time',
+        'DateInterval' => 'interval',
+    ];
+
+    /**
+     * Splits a JMS metadata type into [kind, element class, is list].
+     *
+     * kind is one of SCALAR_KINDS, 'object' for a generated class, or 'other'.
+     */
+    private function kindOf(string $type): array
+    {
+        $isArray = false;
+        if (preg_match('/^array<(.+)>$/', $type, $hits)) {
+            $type = $hits[1];
+            $isArray = true;
+        }
+        $type = ltrim($type, '\\');
+        if (isset(self::SCALAR_KINDS[$type])) {
+            return [self::SCALAR_KINDS[$type], null, $isArray];
+        }
+        if (str_contains($type, '\\') && preg_match('/^[A-Za-z_][A-Za-z0-9_\\\\]*$/', $type)) {
+            return ['object', $type, $isArray];
+        }
+
+        return ['other', null, $isArray];
+    }
+
+    /**
+     * The default namespace the generated code declares on elements of $type: the one
+     * of the topmost generated class in its hierarchy, or null if it declares none.
+     */
+    private function scopeNamespace(PHPClass $type): ?string
+    {
+        $root = $type;
+        while (($extends = $root->getExtends()) && !$extends->isSimpleType() && $extends->getMeta() !== null) {
+            $root = $extends;
+        }
+        $meta = $root->getMeta();
+        $exp = $meta[array_key_first($meta)]['virtual_properties']['ns_prop']['exp'] ?? null;
+
+        return null !== $exp ? trim($exp, '"') : null;
+    }
+
+    /**
+     * The metadata of the __value property in the hierarchy of $type, if it has simple content.
+     */
+    private function valueProperty(PHPClass $type): ?array
+    {
+        for ($t = $type; $t; $t = $t->getExtends()) {
+            $meta = $t->getMeta();
+            if (null !== $meta && isset($meta[array_key_first($meta)]['properties']['__value'])) {
+                return $meta[array_key_first($meta)]['properties']['__value'];
+            }
+            if ($t->getExtends() && $t->getExtends()->isSimpleType()) {
+                break;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * PHP expression turning $var of kind $kind into the string written to the document,
+     * or null if it has to go through sabre.
+     */
+    private function toXmlExpr(string $kind, string $var): ?string
+    {
+        switch ($kind) {
+            case 'string':
+            case 'int':
+            case 'float':
+                return '(string) '.$var;
+            case 'bool':
+                return '('.$var.' ? \'true\' : \'false\')';
+            case 'datetime':
+                return 'Func::formatDateTime('.$var.')';
+            case 'date':
+                return 'Func::formatDate('.$var.')';
+            case 'time':
+                return 'Func::formatTime('.$var.')';
+        }
+
+        return null;
+    }
+
+    /**
+     * PHP expression turning the string $var read from the document into kind $kind.
+     */
+    private function fromXmlExpr(string $kind, string $var): string
+    {
+        switch ($kind) {
+            case 'int':
+                return '(int) '.$var;
+            case 'float':
+                return '(float) '.$var;
+            case 'bool':
+                return 'filter_var('.$var.', FILTER_VALIDATE_BOOLEAN)';
+            case 'datetime':
+            case 'date':
+                return 'new \DateTime('.$var.')';
+            case 'interval':
+                return 'new \DateInterval('.$var.')';
+        }
+
+        return $var;
+    }
+
+    /**
+     * Lines writing one element $local holding $var.
+     *
+     * Elements in the namespace the enclosing element declares as default are written
+     * with the native XMLWriter methods; anything else goes through sabre.
+     */
+    private function writeElementLines(string $local, ?string $ns, string $kind, ?string $scopeNs, string $var): array
+    {
+        $fast = null !== $scopeNs && $ns === $scopeNs;
+        if ($fast && 'object' === $kind) {
+            return [
+                '$writer->startElementNs(null, '.var_export($local, true).', null);',
+                $var.'->xmlSerialize($writer);',
+                '$writer->endElement();',
+            ];
+        }
+        $expr = $this->toXmlExpr($kind, $var);
+        if ($fast && null !== $expr) {
+            return ['$writer->writeElementNs(null, '.var_export($local, true).', null, '.$expr.');'];
+        }
+
+        return ['$writer->writeElement('.var_export((null !== $ns ? '{'.$ns.'}' : '').$local, true).', '.($expr ?? $var).');'];
+    }
+
     private function addSerialization(Generator\ClassGenerator $class, PHPClass $type)
     {
         if ($type->getMeta() === null) return;
         $isBase = $class->getExtendedClass() === null;
         $meta = $type->getMeta();
         $className = array_key_first($meta);
+        $scopeNs = $this->scopeNamespace($type);
+        $class->addUse(Func::class);
 
         // XMLWriter silently drops attributes written after text or child elements, so
         // attributes of the whole class hierarchy go first, then the value and elements.
@@ -456,7 +596,6 @@ class ClassGenerator
             // Global elements (API requests and responses) always carry their own xmlns,
             // even inside a parent in the same namespace: eBay processes the messages of
             // a BulkDataExchangeRequests file one by one and rejects them without it.
-            $class->addUse(Func::class);
             $attributeLines[] = 'Func::writeRootNamespace($writer, '.var_export($meta[$className]['xml_root_namespace'], true).');';
         }
         if (!$isBase) {
@@ -467,7 +606,6 @@ class ClassGenerator
                 if (isset($property['xml_attribute']) && $property['xml_attribute']) {
                     if ($property['serialized_name'] === 'xmlns') {
                         // Only declared where it is not already the default namespace in scope
-                        $class->addUse(Func::class);
                         $attributeLines[] = 'Func::writeDefaultNamespace($writer, '.$property['exp'].');';
                     } else {
                         $attributeLines[] = '$writer->writeAttribute("'.$property['serialized_name'].'", '.$property['exp'].');';
@@ -475,57 +613,59 @@ class ClassGenerator
                 }
             }
         }
-        if (isset($meta[$className]['properties'])) {
-            foreach ($meta[$className]['properties'] as $property) {
-                $isBool = $property['type'] === 'bool';
-                $lines = [];
-                $lines[] = '$value = $this->'.$property['accessor']['getter'].'();';
-                if ($isBool) $lines[] = '$value = null !== $value ? ($value ? \'true\' : \'false\') : null;';
-                if (isset($property['xml_attribute']) && $property['xml_attribute']) {
-                    $lines[] = 'if (null !== $value)';
-                    $lines[] = '$writer->writeAttribute("'.$property['serialized_name'].'", $value);';
-                    array_push($attributeLines, ...$lines);
-                    continue;
-                }
-                if (isset($property['xml_value']) && $property['xml_value']) {
-                    $lines[] = '$writer->write($value);';
-                    array_push($elementLines, ...$lines);
-                    continue;
-                }
-                $ns = '{'.$property['xml_element']['namespace'].'}';
-                if (isset($property['xml_list'])) {
-                    $entryNs = $property['xml_list']['namespace'] ?? $property['xml_element']['namespace'] ?? null;
-                    $entry = (null !== $entryNs ? '{'.$entryNs.'}' : '').$property['xml_list']['entry_name'];
-                    // Written entry by entry so the property may hold a lazy iterable
-                    // (a Generator) instead of a materialised array.
-                    if ($property['xml_list']['inline']) {
-                        $lines[] = 'if (null !== $value) {';
-                        $lines[] = 'foreach ($value as $v) {';
-                        $lines[] = '$writer->writeElement("'.$entry.'", $v);';
-                        $lines[] = '}';
-                        $lines[] = '}';
-                    } else {
-                        // The wrapper is only opened with the first entry: empty lists emit nothing.
-                        $lines[] = 'if (null !== $value) {';
-                        $lines[] = '$open = false;';
-                        $lines[] = 'foreach ($value as $v) {';
-                        $lines[] = 'if (!$open) {';
-                        $lines[] = '$writer->startElement("'.$ns.$property['serialized_name'].'");';
-                        $lines[] = '$open = true;';
-                        $lines[] = '}';
-                        $lines[] = '$writer->writeElement("'.$entry.'", $v);';
-                        $lines[] = '}';
-                        $lines[] = 'if ($open) {';
-                        $lines[] = '$writer->endElement();';
-                        $lines[] = '}';
-                        $lines[] = '}';
-                    }
-                } else {
-                    $lines[] = 'if (null !== $value)';
-                    $lines[] = '$writer->writeElement("'.$ns.$property['serialized_name'].'", $value);';
-                }
-                array_push($elementLines, ...$lines);
+        foreach ($meta[$className]['properties'] ?? [] as $name => $property) {
+            [$kind, , ] = $this->kindOf($property['type']);
+            $lines = ['$value = $this->'.$name.';'];
+            if (isset($property['xml_attribute']) && $property['xml_attribute']) {
+                $lines[] = 'if (null !== $value) {';
+                $lines[] = '$writer->writeAttribute('.var_export($property['serialized_name'], true).', '.($this->toXmlExpr($kind, '$value') ?? '$value').');';
+                $lines[] = '}';
+                array_push($attributeLines, ...$lines);
+                continue;
             }
+            if (isset($property['xml_value']) && $property['xml_value']) {
+                $expr = $this->toXmlExpr($kind, '$value');
+                $lines[] = 'if (null !== $value) {';
+                $lines[] = null !== $expr ? '$writer->text('.$expr.');' : '$writer->write($value);';
+                $lines[] = '}';
+                array_push($elementLines, ...$lines);
+                continue;
+            }
+            $ns = $property['xml_element']['namespace'] ?? null;
+            if (isset($property['xml_list'])) {
+                $entryNs = $property['xml_list']['namespace'] ?? $ns;
+                $entryLines = $this->writeElementLines($property['xml_list']['entry_name'], $entryNs, $kind, $scopeNs, '$v');
+                // Written entry by entry so the property may hold a lazy iterable
+                // (a Generator) instead of a materialised array.
+                $lines[] = 'if (null !== $value) {';
+                if ($property['xml_list']['inline']) {
+                    $lines[] = 'foreach ($value as $v) {';
+                    array_push($lines, ...$entryLines);
+                    $lines[] = '}';
+                } else {
+                    // The wrapper is only opened with the first entry: empty lists emit nothing.
+                    $fast = null !== $scopeNs && $ns === $scopeNs;
+                    $lines[] = '$open = false;';
+                    $lines[] = 'foreach ($value as $v) {';
+                    $lines[] = 'if (!$open) {';
+                    $lines[] = $fast
+                        ? '$writer->startElementNs(null, '.var_export($property['serialized_name'], true).', null);'
+                        : '$writer->startElement('.var_export((null !== $ns ? '{'.$ns.'}' : '').$property['serialized_name'], true).');';
+                    $lines[] = '$open = true;';
+                    $lines[] = '}';
+                    array_push($lines, ...$entryLines);
+                    $lines[] = '}';
+                    $lines[] = 'if ($open) {';
+                    $lines[] = '$writer->endElement();';
+                    $lines[] = '}';
+                }
+                $lines[] = '}';
+            } else {
+                $lines[] = 'if (null !== $value) {';
+                array_push($lines, ...$this->writeElementLines($property['serialized_name'], $ns, $kind, $scopeNs, '$value'));
+                $lines[] = '}';
+            }
+            array_push($elementLines, ...$lines);
         }
 
         if ($isBase) {
@@ -555,15 +695,74 @@ class ClassGenerator
         }
     }
 
+    /**
+     * Lines reading the element the reader is positioned on and storing it with $store
+     * (a format string taking the value expression), moving past its end.
+     */
+    private function readElementLines(string $kind, ?string $elementClass, string $store): array
+    {
+        if ('object' === $kind) {
+            return [sprintf($store, '\\'.$elementClass.'::xmlRead($reader)')];
+        }
+
+        // Empty elements leave the property unset, as before
+        return [
+            '$value = Func::readText($reader);',
+            'if (\'\' !== $value) {',
+            sprintf($store, $this->fromXmlExpr($kind, '$value')),
+            '}',
+        ];
+    }
+
     private function addDeserialization(Generator\ClassGenerator $class, PHPClass $type)
     {
         if ($type->getMeta() === null) return;
         $isBase = $class->getExtendedClass() === null;
         $meta = $type->getMeta();
         $className = array_key_first($meta);
-        $valueType = isset($meta[$className]['properties']) && isset($meta[$className]['properties']['__value']);
+        $class->addUse(Func::class);
 
-        //$class->addUse('\Sabre\Xml\Reader');
+        $attributeCases = [];
+        $elementCases = [];
+        $listLines = [];
+        foreach ($meta[$className]['properties'] ?? [] as $name => $property) {
+            [$kind, $elementClass, $isArray] = $this->kindOf($property['type']);
+            if (isset($property['xml_value']) && $property['xml_value']) {
+                continue;
+            }
+            if (isset($property['xml_attribute']) && $property['xml_attribute']) {
+                $attributeCases[$property['serialized_name']] = [
+                    '$this->'.$name.' = '.$this->fromXmlExpr($kind, '$reader->value').';',
+                ];
+                continue;
+            }
+            $ns = $property['xml_element']['namespace'] ?? '';
+            if (!$isArray) {
+                $elementCases[$ns][$property['serialized_name']] = $this->readElementLines($kind, $elementClass, '$this->'.$name.' = %s;');
+                continue;
+            }
+            // Lists missing from the document read as empty, as before
+            $listLines[] = '$this->'.$name.' = [];';
+            if ($property['xml_list']['inline']) {
+                $entryNs = $property['xml_list']['namespace'] ?? $property['xml_element']['namespace'] ?? '';
+                $elementCases[$entryNs][$property['xml_list']['entry_name']] = $this->readElementLines($kind, $elementClass, '$this->'.$name.'[] = %s;');
+                continue;
+            }
+            $entryNs = $property['xml_list']['namespace'] ?? $property['xml_element']['namespace'] ?? '';
+            if ('object' === $kind) {
+                $read = 'static fn (\XMLReader $reader) => \\'.$elementClass.'::xmlRead($reader)';
+            } else {
+                $read = 'static function (\XMLReader $reader) {'.PHP_EOL
+                    .'$value = Func::readText($reader);'.PHP_EOL
+                    .'return \'\' !== $value ? '.$this->fromXmlExpr($kind, '$value').' : null;'.PHP_EOL
+                    .'}';
+            }
+            $elementCases[$ns][$property['serialized_name']] = [
+                '$this->'.$name.' = Func::readList($reader, '.var_export($property['xml_list']['entry_name'], true).', '.var_export($entryNs, true).', '.$read.');',
+            ];
+        }
+
+        // Entry point for sabre (elementMap, parse()); generated code calls xmlRead() directly.
         $method = new MethodGenerator('xmlDeserialize');
         $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
         $method->setStatic(true);
@@ -571,104 +770,86 @@ class ClassGenerator
         $param = new ParameterGenerator('reader');
         $param->setType('\Sabre\Xml\Reader');
         $method->setParameter($param);
-        $methodLines = [];
-        $methodLines[] = 'return self::fromKeyValue($reader->parseInnerTree([]));';
-        $method->setBody(implode(PHP_EOL, $methodLines));
+        $method->setBody('return self::xmlRead($reader);');
         $class->addMethodFromGenerator($method);
 
-        $method = new MethodGenerator('fromKeyValue');
+        $valueProperty = $this->valueProperty($type);
+        $lines = [];
+        $lines[] = '$self = new self('.(null !== $valueProperty ? 'null' : '').');';
+        $lines[] = '$self->xmlInitLists();';
+        if (null !== $valueProperty) {
+            [$valueKind, , ] = $this->kindOf($valueProperty['type']);
+            $lines[] = '$value = Func::readValue($reader, $self);';
+            $lines[] = 'if (\'\' !== $value) {';
+            $lines[] = '$self->value('.$this->fromXmlExpr($valueKind, '$value').');';
+            $lines[] = '}';
+        } else {
+            $lines[] = 'Func::readObject($reader, $self);';
+        }
+        $lines[] = 'return $self;';
+        $method = new MethodGenerator('xmlRead');
         $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
         $method->setStatic(true);
-        /*$className     = $class->getName();
-        $namespaceName = $class->getNamespaceName();
-        if ($namespaceName !== null) {
-            $className = $namespaceName . '\\' . $className;
-        }*/
         $method->setReturnType($className);
-        $param = new ParameterGenerator('keyValue');
-        //$param->setType('array');
-        //$param->setPassedByReference(true);
+        $param = new ParameterGenerator('reader');
+        $param->setType('\XMLReader');
         $method->setParameter($param);
-        $methodLines = [];
-        $methodLines[] = '$self = new self('.($valueType ? '$keyValue' : '').');';
-        $methodLines[] = '$self->setKeyValue($keyValue);';
-        $methodLines[] = 'return $self;';
-        $method->setBody(implode(PHP_EOL, $methodLines));
+        $method->setDocBlock(new DocBlockGenerator('Reads the element the reader is positioned on and moves past its end.'));
+        $method->setBody(implode(PHP_EOL, $lines));
         $class->addMethodFromGenerator($method);
 
-        $method = new MethodGenerator('setKeyValue');
-        $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
+        $lines = $isBase ? [] : ['parent::xmlInitLists();'];
+        array_push($lines, ...$listLines);
+        $method = new MethodGenerator('xmlInitLists');
+        $method->setVisibility(MethodGenerator::VISIBILITY_PROTECTED);
         $method->setReturnType('void');
-        $param = new ParameterGenerator('keyValue');
-        //$param->setType('array');
-        //$param->setPassedByReference(true);
-        $method->setParameter($param);
-        $methodLines = [];
-        if (!$isBase) {
-            $methodLines[] = 'parent::setKeyValue($keyValue);';
-        }
-        if (isset($meta[$className]['properties'])) {
-            foreach ($meta[$className]['properties'] as $property) {
-                $class->addUse(Func::class);
-                $isAttribute = isset($property['xml_attribute']) && $property['xml_attribute'];
-                $isValue = isset($property['xml_value']) && $property['xml_value'];
-                $isInline = isset($property['xml_list']) && $property['xml_list']['inline'];
-                $ns = $isAttribute ? '' : '{'.$property['xml_element']['namespace'].'}';
-                $entry = $isValue ? 'value' : $ns.$property['serialized_name'];
-                $type = $property['type'];
-                $isArray = false;
-                preg_match('/array<(?P<type>.+)>/', $type, $hits);
-                if (isset($hits['type'])) {
-                    $type = $hits['type'];
-                    $isArray = true;
-                }
-                switch ($type) {
-                    case 'bool':
-                        $mapType = 'mapValue';
-                        $value = 'filter_var($value, FILTER_VALIDATE_BOOLEAN)';
-                        break;
-                    case 'string':
-                    case 'float':
-                    case 'int':
-                    case 'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\Time':
-                        $mapType = 'mapValue';
-                        $value = '$value'; // TODO convert to type?
-                        break;
-                    case 'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\DateTime':
-                    case 'GoetasWebservices\Xsd\XsdToPhp\XMLSchema\Date':
-                        $mapType = 'mapValue';
-                        $value = 'new \DateTime($value)';
-                        break;
-                    case 'DateInterval':
-                        $mapType = 'mapValue';
-                        $value = 'new \DateInterval($value)';
-                        break;
-                    default:
-                        $mapType = 'mapObject';
-                        $value = '\\'.$type.'::fromKeyValue($value)';
-                        break;
-                }
-                if ($isArray && $value !== '$value') {
-                    $value = 'array_map(function($v){return '.str_replace('$value', '$v', $value).';}, $value)';
-                }
-                if ($isArray && !$isInline) {
-                    // Wrapped list: take the children of the single wrapper element, then
-                    // collect every entry among them.
-                    $entryNs = $property['xml_list']['namespace'] ?? $property['xml_element']['namespace'] ?? null;
-                    $entryName = (null !== $entryNs ? '{'.$entryNs.'}' : '').$property['xml_list']['entry_name'];
-                    $methodLines[] = '$value = Func::mapObject($keyValue, \''.$entry.'\');';
-                    $methodLines[] = 'if (null !== $value) {';
-                    $methodLines[] = '$value = Func::mapArray($value, \''.$entryName.'\''.($mapType === 'mapValue' ? ', true' : '').');';
-                    $methodLines[] = '$this->'.$property['accessor']['setter'].'('.$value.');';
-                    $methodLines[] = '}';
-                    continue;
-                }
-                $methodLines[] = '$value = Func::'.($isArray ? 'mapArray' : $mapType).'($keyValue, \''.$entry.'\''.($isArray && $mapType === 'mapValue' ? ', true' : '').');';
-                $methodLines[] = 'if (null !== $value)';
-                $methodLines[] = '$this->'.$property['accessor']['setter'].'('.$value.');';
+        $method->setBody(implode(PHP_EOL, $lines));
+        $class->addMethodFromGenerator($method);
+
+        $fallback = $isBase ? 'return false;' : 'return parent::%s($reader);';
+
+        $lines = [];
+        if ($attributeCases) {
+            $lines[] = 'switch ($reader->localName) {';
+            foreach ($attributeCases as $local => $caseLines) {
+                $lines[] = 'case '.var_export($local, true).':';
+                array_push($lines, ...$caseLines);
+                $lines[] = 'return true;';
             }
+            $lines[] = '}';
         }
-        $method->setBody(implode(PHP_EOL, $methodLines));
+        $lines[] = sprintf($fallback, 'xmlReadAttribute');
+        $method = new MethodGenerator('xmlReadAttribute');
+        $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
+        $method->setReturnType('bool');
+        $param = new ParameterGenerator('reader');
+        $param->setType('\XMLReader');
+        $method->setParameter($param);
+        $method->setDocBlock(new DocBlockGenerator('Called by Func::readObject(): reads the attribute the reader is positioned on, if it belongs to this type.'));
+        $method->setBody(implode(PHP_EOL, $lines));
+        $class->addMethodFromGenerator($method);
+
+        $lines = [];
+        foreach ($elementCases as $ns => $cases) {
+            $lines[] = 'if ('.var_export($ns, true).' === $reader->namespaceURI) {';
+            $lines[] = 'switch ($reader->localName) {';
+            foreach ($cases as $local => $caseLines) {
+                $lines[] = 'case '.var_export($local, true).':';
+                array_push($lines, ...$caseLines);
+                $lines[] = 'return true;';
+            }
+            $lines[] = '}';
+            $lines[] = '}';
+        }
+        $lines[] = sprintf($fallback, 'xmlReadElement');
+        $method = new MethodGenerator('xmlReadElement');
+        $method->setVisibility(MethodGenerator::VISIBILITY_PUBLIC);
+        $method->setReturnType('bool');
+        $param = new ParameterGenerator('reader');
+        $param->setType('\XMLReader');
+        $method->setParameter($param);
+        $method->setDocBlock(new DocBlockGenerator('Called by Func::readObject(): reads the child element the reader is positioned on, if it belongs to this type, and moves past its end.'));
+        $method->setBody(implode(PHP_EOL, $lines));
         $class->addMethodFromGenerator($method);
 
         if ($isBase) {

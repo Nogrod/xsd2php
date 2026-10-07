@@ -79,7 +79,9 @@ class SabreWriter extends Writer implements LoggerAwareInterface
             $this->logger->debug(sprintf("Created Sabre metadata %s", $class));
         }*/
         $maps[] = '\'Time\' => function(Writer $writer, $elem) {$value = $elem->format(\'H:i:s\');if ($elem->getTimezone()->getOffset($elem) !== (new \DateTimeZone(\'UTC\'))->getOffset($elem)) $value .= $elem->format(\'P\');$writer->write($value);},';
-        $maps[] = '\'DateTime\' => function(Writer $writer, $elem) {$writer->write($elem->format(\'Y-m-d\\TH:i:s.v\\Z\'));},';
+        // Converted to UTC before the Z suffix is written (Func::formatDateTime())
+        $maps[] = '\'DateTime\' => function(Writer $writer, $elem) {$writer->write(\Nogrod\XMLClientRuntime\Func::formatDateTime($elem));},';
+        $maps[] = '\'DateTimeImmutable\' => function(Writer $writer, $elem) {$writer->write(\Nogrod\XMLClientRuntime\Func::formatDateTime($elem));},';
         $maps[] = '\'Date\' => function(Writer $writer, $elem) {$writer->write($elem->format(\'Y-m-d\'));},';
         $method = new MethodGenerator('Get');
         $method->setStatic(true);
