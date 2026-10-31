@@ -223,6 +223,35 @@ class PHPConversionTest extends TestCase
 
     }
 
+    public function testArrayAdderStartsUnsetList()
+    {
+        $xml = '
+            <xs:schema targetNamespace="http://www.example.com"
+            xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+                <xs:complexType name="ArrayOfStrings">
+                    <xs:all>
+                        <xs:element name="string" type="xs:string" maxOccurs="unbounded"/>
+                    </xs:all>
+                </xs:complexType>
+
+                <xs:complexType name="Single">
+                    <xs:all>
+                        <xs:element name="a" type="ArrayOfStrings"/>
+                    </xs:all>
+                </xs:complexType>
+
+            </xs:schema>';
+
+        $single = $this->getClasses($xml)['Example\SingleType'];
+
+        // The list stays null until the first entry turns it into an array
+        $this->assertNull($single->getProperty('a')->getDefaultValue()->getValue());
+        $body = $single->getMethod('addToA')->getBody();
+        $this->assertStringStartsWith('$this->a ??= [];', $body);
+        $this->assertStringContainsString('if (!is_array($this->a))', $body);
+    }
+
     public function testSimpleMulteplicity()
     {
         $xml = '

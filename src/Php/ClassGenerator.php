@@ -314,8 +314,10 @@ class ClassGenerator
             }
         }
 
-        // The property may hold a lazy iterable, which cannot be appended to.
-        $methodBody = "if (!is_array(\$this->".$prop->getName()."))".PHP_EOL;
+        // Unset lists stay null so they are left out of the XML; the first entry starts the array.
+        // The property may also hold a lazy iterable, which cannot be appended to.
+        $methodBody = "\$this->".$prop->getName()." ??= [];".PHP_EOL;
+        $methodBody .= "if (!is_array(\$this->".$prop->getName()."))".PHP_EOL;
         $methodBody .= "throw new \\LogicException('".$prop->getName()." is a lazy iterable and cannot be appended to; set an array instead.');".PHP_EOL;
         $methodBody .= "\$this->".$prop->getName()."[] = \$".$propName.";".PHP_EOL;
         $methodBody .= "return \$this;";
